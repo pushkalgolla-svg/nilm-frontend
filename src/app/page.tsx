@@ -31,7 +31,8 @@ import {
 
 // API endpoint configurable via environment variable for Vercel + ngrok deployment
 const API_URL =
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/status";
+  process.env.NEXT_PUBLIC_API_URL ||
+  "https://backless-snagged-chamber.ngrok-free.dev/api/status";
 
 // Response interface from the NILM backend
 interface ApplianceDetail {
