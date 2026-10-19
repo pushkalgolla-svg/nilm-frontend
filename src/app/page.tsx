@@ -29,10 +29,10 @@ import {
   Trash2,
 } from "lucide-react";
 
-// API endpoint configurable via environment variable for Vercel + ngrok deployment
+// API endpoint configurable via environment variable (Render Cloud Backend)
 const API_URL =
   process.env.NEXT_PUBLIC_API_URL ||
-  "https://backless-snagged-chamber.ngrok-free.dev/api/status";
+  "https://nilm-backend.onrender.com/api/status";
 
 // Response interface from the NILM backend
 interface ApplianceDetail {
