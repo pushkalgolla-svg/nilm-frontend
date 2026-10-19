@@ -250,7 +250,7 @@ export default function Dashboard() {
     };
 
     fetchStatus();
-    const intervalId = setInterval(fetchStatus, 800);
+    const intervalId = setInterval(fetchStatus, 350);
 
     return () => {
       isMounted = false;
