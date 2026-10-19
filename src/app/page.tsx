@@ -29,10 +29,8 @@ import {
   Trash2,
 } from "lucide-react";
 
-// API endpoint configurable via environment variable (Render Cloud Backend)
-const API_URL =
-  process.env.NEXT_PUBLIC_API_URL ||
-  "https://nilm-backend.onrender.com/api/status";
+// Permanent Render Cloud Backend Endpoint
+const API_URL = "https://nilm-backend.onrender.com/api/status";
 
 // Response interface from the NILM backend
 interface ApplianceDetail {
@@ -338,7 +336,7 @@ export default function Dashboard() {
                 <code className="rounded bg-black/40 px-1.5 py-0.5 font-mono text-amber-200">
                   {API_URL}
                 </code>
-                . Ensure your local Python backend is running with ngrok!
+                . Connecting to Render cloud backend...
               </span>
             </div>
             <span className="font-mono text-[11px] text-amber-400/80">Retrying every 1s...</span>
