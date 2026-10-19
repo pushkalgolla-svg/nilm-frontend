@@ -166,21 +166,21 @@ export default function Dashboard() {
   }, []);
 
   // --------------------------------------------------------------------------
-  // Polling Hook: Fetches live data from API_URL every second
+  // Polling Hook: Smooth live stream with pause detection
   // --------------------------------------------------------------------------
   useEffect(() => {
     let isMounted = true;
+    let lastSeenTimestamp = "";
 
     const fetchStatus = async () => {
       try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 950);
+        const timeoutId = setTimeout(() => controller.abort(), 3500);
 
         const res = await fetch(API_URL, {
           signal: controller.signal,
           headers: {
             Accept: "application/json",
-            "ngrok-skip-browser-warning": "true",
           },
         });
         clearTimeout(timeoutId);
@@ -193,10 +193,22 @@ export default function Dashboard() {
         if (!isMounted) return;
 
         setIsConnected(true);
-        setStatusMode(data.mode ? `Live (${data.mode})` : "Edge Node Online");
 
-        const timeStr = data.timestamp
-          ? new Date(data.timestamp).toLocaleTimeString()
+        const rawTimestamp = data.timestamp || "";
+        const isFresh = rawTimestamp
+          ? Date.now() - new Date(rawTimestamp).getTime() < 8000
+          : false;
+
+        if (isFresh) {
+          setStatusMode(data.mode ? `Live (${data.mode})` : "Node Streaming");
+        } else if (rawTimestamp) {
+          setStatusMode("ESP32 Paused / Idle");
+        } else {
+          setStatusMode("Waiting for ESP32...");
+        }
+
+        const timeStr = rawTimestamp
+          ? new Date(rawTimestamp).toLocaleTimeString()
           : new Date().toLocaleTimeString();
 
         const v = data.voltage_v ?? 230.0;
@@ -211,30 +223,34 @@ export default function Dashboard() {
         const appData = data.appliances ?? {};
         setAppliances(appData);
 
-        // Build new point for Recharts
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const newPoint: Record<string, any> = {
-          time: timeStr,
-          total: i,
-        };
+        // Only append to the live chart when a fresh packet actually arrives from ESP32
+        if (rawTimestamp && rawTimestamp !== lastSeenTimestamp) {
+          lastSeenTimestamp = rawTimestamp;
 
-        Object.entries(appData).forEach(([appName, detail]) => {
-          newPoint[appName] = detail.current_rms_a ?? 0.0;
-        });
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const newPoint: Record<string, any> = {
+            time: timeStr,
+            total: i,
+          };
 
-        setChartData((prev) => {
-          const updated = [...prev, newPoint];
-          return updated.slice(-bufferSeconds);
-        });
+          Object.entries(appData).forEach(([appName, detail]) => {
+            newPoint[appName] = detail.current_rms_a ?? 0.0;
+          });
+
+          setChartData((prev) => {
+            const updated = [...prev, newPoint];
+            return updated.slice(-bufferSeconds);
+          });
+        }
       } catch {
         if (!isMounted) return;
         setIsConnected(false);
-        setStatusMode("Offline / Tunnel Waiting");
+        setStatusMode("Connecting to Cloud...");
       }
     };
 
     fetchStatus();
-    const intervalId = setInterval(fetchStatus, 1000);
+    const intervalId = setInterval(fetchStatus, 800);
 
     return () => {
       isMounted = false;
