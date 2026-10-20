@@ -196,7 +196,7 @@ export default function Dashboard() {
 
         const rawTimestamp = data.timestamp || "";
         const isFresh = rawTimestamp
-          ? Date.now() - new Date(rawTimestamp).getTime() < 35000
+          ? Date.now() - new Date(rawTimestamp).getTime() < 55000
           : false;
 
         if (isFresh) {
