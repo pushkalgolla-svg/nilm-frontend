@@ -27,6 +27,8 @@ import {
   Eye,
   EyeOff,
   Trash2,
+  Waves,
+  Compass,
 } from "lucide-react";
 
 // Permanent Render Cloud Backend Endpoint
@@ -39,13 +41,33 @@ interface ApplianceDetail {
   power_w: number;
 }
 
+interface IMUData {
+  accel_x_g?: number;
+  accel_y_g?: number;
+  accel_z_g?: number;
+  gyro_x_dps?: number;
+  gyro_y_dps?: number;
+  gyro_z_dps?: number;
+  vibration_magnitude_g?: number;
+}
+
+interface MLInference {
+  predicted_appliance?: string;
+  confidence?: number;
+  model?: string;
+  last_inference_time?: string;
+}
+
 interface BackendStatus {
   timestamp?: string;
   simulation_mode?: boolean;
   mode?: string;
   voltage_v?: number;
   total_current_a?: number;
+  delta_i_a?: number;
   total_power_w?: number;
+  imu?: IMUData;
+  ml_inference?: MLInference;
   appliance_states?: Record<string, string>;
   appliances?: Record<string, ApplianceDetail>;
 }
@@ -152,6 +174,20 @@ export default function Dashboard() {
   const [totalCurrent, setTotalCurrent] = useState(0.0);
   const [totalPower, setTotalPower] = useState(0.0);
   const [appliances, setAppliances] = useState<Record<string, ApplianceDetail>>({});
+  const [imu, setImu] = useState<IMUData>({
+    accel_x_g: 0.0,
+    accel_y_g: 0.0,
+    accel_z_g: 1.0,
+    gyro_x_dps: 0.0,
+    gyro_y_dps: 0.0,
+    gyro_z_dps: 0.0,
+    vibration_magnitude_g: 1.0,
+  });
+  const [mlInference, setMlInference] = useState<MLInference>({
+    predicted_appliance: "Standby",
+    confidence: 1.0,
+    model: "TinyML ESP32 (inference.h)",
+  });
 
   // Chart Telemetry Points & buffer
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -222,6 +258,13 @@ export default function Dashboard() {
 
         const appData = data.appliances ?? {};
         setAppliances(appData);
+
+        if (data.imu) {
+          setImu(data.imu);
+        }
+        if (data.ml_inference) {
+          setMlInference(data.ml_inference);
+        }
 
         // Only append to the live chart when a fresh packet actually arrives from ESP32
         if (rawTimestamp && rawTimestamp !== lastSeenTimestamp) {
@@ -568,6 +611,200 @@ export default function Dashboard() {
               })}
             </div>
           )}
+        </section>
+
+        {/* MPU-6050 Accelerometer & Multi-Sensor Fusion Section */}
+        <section className="rounded-2xl border border-slate-800/80 bg-slate-900/60 p-5 shadow-xl backdrop-blur-md sm:p-6">
+          <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-500/10 text-cyan-400 ring-1 ring-cyan-500/30">
+                <Waves className="h-5 w-5" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-base font-bold tracking-tight text-white sm:text-lg">
+                    MPU-6050 Multi-Sensor Fusion & Vibration Telemetry
+                  </h2>
+                  <span className="rounded-md bg-cyan-500/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-cyan-300 ring-1 ring-cyan-500/30">
+                    I2C Node (0x68)
+                  </span>
+                </div>
+                <p className="text-xs text-slate-400">
+                  Fuses Electrical Current (ΔI) with Mechanical Vibration (a_xyz, ω_xyz) for on-chip TinyML classification
+                </p>
+              </div>
+            </div>
+
+            {/* TinyML Edge Inference Badge */}
+            <div className="flex items-center gap-2 rounded-xl border border-slate-800 bg-slate-950/70 px-3 py-2 text-xs">
+              <Cpu className="h-4 w-4 text-indigo-400" />
+              <div className="flex flex-col">
+                <span className="text-[10px] uppercase text-slate-400">Active Inference</span>
+                <span className="font-semibold text-indigo-300">
+                  {mlInference.predicted_appliance ?? "Standby"} ({((mlInference.confidence ?? 1.0) * 100).toFixed(0)}%)
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+            {/* 3-Axis Accelerometer */}
+            <div className="rounded-xl border border-slate-800/80 bg-slate-950/50 p-4">
+              <div className="mb-3 flex items-center justify-between">
+                <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-slate-300">
+                  <Compass className="h-4 w-4 text-blue-400" />
+                  3-Axis Accelerometer
+                </span>
+                <span className="text-[11px] font-mono text-slate-500">Unit: g (9.81 m/s²)</span>
+              </div>
+              <div className="space-y-2.5 font-mono text-xs">
+                <div>
+                  <div className="flex justify-between text-slate-400">
+                    <span>X-Axis (ax):</span>
+                    <span className="font-bold text-white">{(imu.accel_x_g ?? 0).toFixed(3)} g</span>
+                  </div>
+                  <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-slate-800">
+                    <div
+                      className="h-full bg-blue-500 transition-all duration-300"
+                      style={{ width: `${Math.min(Math.max(((imu.accel_x_g ?? 0) + 2) / 4, 0), 1) * 100}%` }}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <div className="flex justify-between text-slate-400">
+                    <span>Y-Axis (ay):</span>
+                    <span className="font-bold text-white">{(imu.accel_y_g ?? 0).toFixed(3)} g</span>
+                  </div>
+                  <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-slate-800">
+                    <div
+                      className="h-full bg-blue-500 transition-all duration-300"
+                      style={{ width: `${Math.min(Math.max(((imu.accel_y_g ?? 0) + 2) / 4, 0), 1) * 100}%` }}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <div className="flex justify-between text-slate-400">
+                    <span>Z-Axis (az):</span>
+                    <span className="font-bold text-white">{(imu.accel_z_g ?? 1.0).toFixed(3)} g</span>
+                  </div>
+                  <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-slate-800">
+                    <div
+                      className="h-full bg-cyan-400 transition-all duration-300"
+                      style={{ width: `${Math.min(Math.max(((imu.accel_z_g ?? 1.0) + 2) / 4, 0), 1) * 100}%` }}
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* 3-Axis Gyroscope */}
+            <div className="rounded-xl border border-slate-800/80 bg-slate-950/50 p-4">
+              <div className="mb-3 flex items-center justify-between">
+                <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-slate-300">
+                  <Activity className="h-4 w-4 text-emerald-400" />
+                  3-Axis Gyroscope
+                </span>
+                <span className="text-[11px] font-mono text-slate-500">Unit: °/s (dps)</span>
+              </div>
+              <div className="space-y-2.5 font-mono text-xs">
+                <div>
+                  <div className="flex justify-between text-slate-400">
+                    <span>Gyro X (gx):</span>
+                    <span className="font-bold text-white">{(imu.gyro_x_dps ?? 0).toFixed(2)} °/s</span>
+                  </div>
+                  <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-slate-800">
+                    <div
+                      className="h-full bg-emerald-500 transition-all duration-300"
+                      style={{ width: `${Math.min(Math.max(((imu.gyro_x_dps ?? 0) + 250) / 500, 0), 1) * 100}%` }}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <div className="flex justify-between text-slate-400">
+                    <span className="flex items-center gap-1">
+                      Gyro Y (gy):
+                      <span className="text-[10px] text-amber-400 font-sans" title="Ceiling Fan Trigger Threshold (<= -0.58 °/s)">
+                        ★ Fan Trigger
+                      </span>
+                    </span>
+                    <span className={`font-bold ${(imu.gyro_y_dps ?? 0) <= -0.58 ? "text-amber-400" : "text-white"}`}>
+                      {(imu.gyro_y_dps ?? 0).toFixed(2)} °/s
+                    </span>
+                  </div>
+                  <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-slate-800">
+                    <div
+                      className={`h-full transition-all duration-300 ${(imu.gyro_y_dps ?? 0) <= -0.58 ? "bg-amber-400" : "bg-emerald-500"}`}
+                      style={{ width: `${Math.min(Math.max(((imu.gyro_y_dps ?? 0) + 250) / 500, 0), 1) * 100}%` }}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <div className="flex justify-between text-slate-400">
+                    <span>Gyro Z (gz):</span>
+                    <span className="font-bold text-white">{(imu.gyro_z_dps ?? 0).toFixed(2)} °/s</span>
+                  </div>
+                  <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-slate-800">
+                    <div
+                      className="h-full bg-emerald-500 transition-all duration-300"
+                      style={{ width: `${Math.min(Math.max(((imu.gyro_z_dps ?? 0) + 250) / 500, 0), 1) * 100}%` }}
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Resultant Vibration & Motor Status */}
+            <div className="flex flex-col justify-between rounded-xl border border-slate-800/80 bg-slate-950/50 p-4">
+              <div>
+                <div className="mb-3 flex items-center justify-between">
+                  <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-slate-300">
+                    <Waves className="h-4 w-4 text-purple-400" />
+                    Vibration Magnitude
+                  </span>
+                  <span className="text-[11px] font-mono text-slate-500">|a| = √(ax²+ay²+az²)</span>
+                </div>
+
+                <div className="mt-2 flex items-baseline gap-2">
+                  <span className="font-mono text-3xl font-extrabold text-white">
+                    {(imu.vibration_magnitude_g ?? 1.0).toFixed(3)}
+                  </span>
+                  <span className="text-sm font-semibold text-purple-400">g</span>
+                </div>
+
+                <div className="mt-3">
+                  <div className="text-[11px] text-slate-400 mb-1">Mechanical Oscillation State:</div>
+                  <div
+                    className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ${
+                      (imu.gyro_y_dps ?? 0) <= -0.58 || Math.abs((imu.vibration_magnitude_g ?? 1.0) - 1.0) > 0.08
+                        ? "bg-amber-500/20 text-amber-300 ring-amber-500/40"
+                        : "bg-slate-800/80 text-slate-300 ring-slate-700"
+                    }`}
+                  >
+                    <span
+                      className={`h-2 w-2 rounded-full ${
+                        (imu.gyro_y_dps ?? 0) <= -0.58 || Math.abs((imu.vibration_magnitude_g ?? 1.0) - 1.0) > 0.08
+                          ? "animate-ping bg-amber-400"
+                          : "bg-emerald-400"
+                      }`}
+                    />
+                    {(imu.gyro_y_dps ?? 0) <= -0.58
+                      ? "Ceiling Fan Motor Oscillation"
+                      : Math.abs((imu.vibration_magnitude_g ?? 1.0) - 1.0) > 0.08
+                      ? "High Mechanical Vibration"
+                      : "Low Noise / Static Platform"}
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-4 border-t border-slate-800/80 pt-3 text-[11px] text-slate-400">
+                <span className="text-slate-300 font-medium">Why IMU fusion matters:</span> Allows TinyML to distinguish between inductive motorized loads (Ceiling Fan) and purely electronic loads (Fast Charger) at matching current draws.
+              </div>
+            </div>
+          </div>
         </section>
 
         {/* Live Recharts Line Graph Section */}
