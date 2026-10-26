@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "NILM Edge Telemetry & Analytics Dashboard | Manav Rachna",
+  title: "NILM Edge Telemetry & Analytics Dashboard",
   description:
     "Non-Intrusive Load Monitoring (NILM) edge-to-cloud telemetry, MPU-6050 multi-sensor vibration fusion, and edge TinyML analytics.",
 };

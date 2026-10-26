@@ -469,12 +469,9 @@ export default function Dashboard() {
               <Zap className="h-5 w-5" />
             </div>
             <div>
-              {/* Student & Project Identifier Pill */}
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="rounded-md bg-slate-900 px-2 py-0.5 text-xs font-semibold tracking-wide text-slate-300 ring-1 ring-slate-800">
-                  Manav Rachna AIoT Project | Golla Pushkal | 2K24ECUN03009
-                </span>
-                <span className="hidden rounded-md bg-blue-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-blue-400 ring-1 ring-blue-500/20 sm:inline-block">
+              {/* System Status Pill */}
+              <div className="flex items-center gap-2">
+                <span className="rounded-md bg-blue-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-blue-400 ring-1 ring-blue-500/20">
                   Live 1Hz Telemetry
                 </span>
               </div>
