@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import {
   ResponsiveContainer,
   LineChart,
@@ -38,10 +38,17 @@ import {
   FileSpreadsheet,
   Building2,
   ArrowRight,
+  Volume2,
+  VolumeX,
+  Printer,
+  Clock,
+  AlertOctagon,
+  RefreshCw,
 } from "lucide-react";
 
-// Permanent Render Cloud Backend Endpoint
+// Permanent Render Cloud Backend Endpoints
 const API_URL = "https://nilm-backend.onrender.com/api/status";
+const CONTROL_API_URL = "https://nilm-backend.onrender.com/api/control";
 
 // Response interface from the NILM backend
 interface ApplianceDetail {
@@ -67,6 +74,20 @@ interface MLInference {
   last_inference_time?: string;
 }
 
+interface ToDTariff {
+  rate_inr?: number;
+  slot?: "PEAK" | "NORMAL" | "OFF-PEAK" | string;
+  base_rate_inr?: number;
+  peak_rate_inr?: number;
+  off_peak_rate_inr?: number;
+}
+
+interface DutyCycleDetail {
+  runtime_seconds?: number;
+  runtime_str?: string;
+  duty_cycle_pct?: number;
+}
+
 interface AnalyticsData {
   energy_kwh?: number;
   cost_inr?: number;
@@ -74,6 +95,10 @@ interface AnalyticsData {
   projected_monthly_inr?: number;
   carbon_kg?: number;
   carbon_g?: number;
+  tod_tariff?: ToDTariff;
+  potential_savings_hourly_inr?: number;
+  duty_cycles?: Record<string, DutyCycleDetail>;
+  peak_demand_w?: number;
 }
 
 interface PredictiveMaintenanceData {
@@ -108,6 +133,10 @@ interface BackendStatus {
   timestamp?: string;
   simulation_mode?: boolean;
   mode?: string;
+  breaker_status?: "ARMED" | "TRIPPED" | string;
+  peak_demand_kw?: number;
+  tod_tariff?: ToDTariff;
+  duty_cycles?: Record<string, DutyCycleDetail>;
   voltage_v?: number;
   total_current_a?: number;
   delta_i_a?: number;
@@ -224,6 +253,22 @@ export default function Dashboard() {
   const [voltage, setVoltage] = useState(230.0);
   const [totalCurrent, setTotalCurrent] = useState(0.0);
   const [totalPower, setTotalPower] = useState(0.0);
+  const [breakerStatus, setBreakerStatus] = useState<string>("ARMED");
+  const [isControlling, setIsControlling] = useState<boolean>(false);
+  const [peakDemandKw, setPeakDemandKw] = useState<number>(0.0);
+  const [todTariff, setTodTariff] = useState<ToDTariff>({
+    rate_inr: 7.50,
+    slot: "NORMAL",
+    base_rate_inr: 7.50,
+    peak_rate_inr: 10.00,
+    off_peak_rate_inr: 5.00,
+  });
+  const [dutyCycles, setDutyCycles] = useState<Record<string, DutyCycleDetail>>({
+    "Ceiling Fan": { runtime_seconds: 0, runtime_str: "0m 0s", duty_cycle_pct: 0 },
+    "Electric Iron": { runtime_seconds: 0, runtime_str: "0m 0s", duty_cycle_pct: 0 },
+    "Fast Charger": { runtime_seconds: 0, runtime_str: "0m 0s", duty_cycle_pct: 0 },
+  });
+
   const [appliances, setAppliances] = useState<Record<string, ApplianceDetail>>({});
   const [imu, setImu] = useState<IMUData>({
     accel_x_g: 0.0,
@@ -246,6 +291,7 @@ export default function Dashboard() {
     projected_monthly_inr: 0.0,
     carbon_kg: 0.0,
     carbon_g: 0.0,
+    potential_savings_hourly_inr: 0.0,
   });
   const [maintenance, setMaintenance] = useState<PredictiveMaintenanceData>({
     health_score: 100,
@@ -270,9 +316,36 @@ export default function Dashboard() {
   // Hidden traces
   const [hiddenLines, setHiddenLines] = useState<Record<string, boolean>>({});
 
+  // Audio Alerts & Mute state (Web Audio API)
+  const [alarmMuted, setAlarmMuted] = useState(false);
+  const lastAlarmTimeRef = useRef<number>(0);
+
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // Web Audio API Synthesizer: zero mp3 files, zero dependencies
+  const playAlertTone = (frequency: number = 880, durationMs: number = 320) => {
+    if (alarmMuted) return;
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(frequency, ctx.currentTime);
+      gain.gain.setValueAtTime(0.12, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + durationMs / 1000);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + durationMs / 1000);
+    } catch {
+      // Silently ignore browser autoplay restriction before user interaction
+    }
+  };
 
   // --------------------------------------------------------------------------
   // Polling Hook: Smooth live stream with pause detection
@@ -329,6 +402,19 @@ export default function Dashboard() {
         setTotalPower(p);
         setLastUpdated(timeStr);
 
+        if (data.breaker_status) {
+          setBreakerStatus(data.breaker_status);
+        }
+        if (data.peak_demand_kw !== undefined) {
+          setPeakDemandKw(data.peak_demand_kw);
+        }
+        if (data.tod_tariff) {
+          setTodTariff(data.tod_tariff);
+        }
+        if (data.duty_cycles) {
+          setDutyCycles(data.duty_cycles);
+        }
+
         const appData = data.appliances ?? {};
         setAppliances(appData);
 
@@ -343,6 +429,16 @@ export default function Dashboard() {
         }
         if (data.predictive_maintenance) {
           setMaintenance(data.predictive_maintenance);
+
+          // Audio Warning trigger for Bearing Faults or Unattended Iron
+          const isIronOn = appData["Electric Iron"]?.state === "ON";
+          const hasBearingFault = data.predictive_maintenance.bearing_fault === true;
+          const now = Date.now();
+
+          if ((hasBearingFault || (isIronOn && (data.total_current_a ?? 0) > 4.5)) && now - lastAlarmTimeRef.current > 7500) {
+            lastAlarmTimeRef.current = now;
+            playAlertTone(hasBearingFault ? 720 : 880, 360);
+          }
         }
         if (data.edge_benchmark) {
           setBenchmark(data.edge_benchmark);
@@ -384,7 +480,29 @@ export default function Dashboard() {
       isMounted = false;
       clearInterval(intervalId);
     };
-  }, [bufferSeconds]);
+  }, [bufferSeconds, alarmMuted]);
+
+  // Two-Way Remote IoT Breaker Control (Cloud -> MQTT -> ESP32)
+  const handleToggleBreaker = async () => {
+    const targetCommand = breakerStatus === "TRIPPED" ? "RESET" : "TRIP";
+    try {
+      setIsControlling(true);
+      const res = await fetch(CONTROL_API_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ command: targetCommand }),
+      });
+      if (res.ok) {
+        const result = await res.json();
+        setBreakerStatus(result.breaker_status || (targetCommand === "TRIP" ? "TRIPPED" : "ARMED"));
+        playAlertTone(targetCommand === "TRIP" ? 440 : 980, 200);
+      }
+    } catch (err) {
+      console.error("Failed to send remote control command:", err);
+    } finally {
+      setIsControlling(false);
+    }
+  };
 
   const toggleLineVisibility = (key: string) => {
     setHiddenLines((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -392,6 +510,10 @@ export default function Dashboard() {
 
   const handleClearChart = () => {
     setChartData([]);
+  };
+
+  const handlePrintShiftReport = () => {
+    window.print();
   };
 
   const handleExportCSV = () => {
@@ -447,9 +569,13 @@ export default function Dashboard() {
     document.body.removeChild(link);
   };
 
-  const activeCount = useMemo(() => {
-    return Object.values(appliances).filter((a) => a.state === "ON").length;
+  const activeAppliancesList = useMemo(() => {
+    return Object.entries(appliances)
+      .filter(([, detail]) => detail.state === "ON")
+      .map(([name]) => name);
   }, [appliances]);
+
+  const activeCount = activeAppliancesList.length;
 
   const applianceKeys = useMemo(() => {
     return Object.keys(appliances);
@@ -462,17 +588,42 @@ export default function Dashboard() {
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 antialiased selection:bg-blue-600 selection:text-white">
       {/* Top SCADA Navigation Header */}
-      <header className="sticky top-0 z-30 border-b border-slate-800 bg-slate-950/90 backdrop-blur-md">
+      <header className="sticky top-0 z-30 border-b border-slate-800 bg-slate-950/90 backdrop-blur-md print:hidden">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6 lg:px-8">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600/15 text-blue-400 ring-1 ring-blue-500/30">
               <Zap className="h-5 w-5" />
             </div>
             <div>
-              {/* System Status Pill */}
-              <div className="flex items-center gap-2">
+              {/* System Badges */}
+              <div className="flex flex-wrap items-center gap-2">
                 <span className="rounded-md bg-blue-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-blue-400 ring-1 ring-blue-500/20">
                   Live 1Hz Telemetry
+                </span>
+
+                {/* ToD Dynamic Tariff Pill */}
+                <span
+                  className={`rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ring-1 ${
+                    todTariff.slot === "PEAK"
+                      ? "bg-amber-500/15 text-amber-300 ring-amber-500/30"
+                      : todTariff.slot === "OFF-PEAK"
+                      ? "bg-emerald-500/15 text-emerald-300 ring-emerald-500/30"
+                      : "bg-slate-800 text-slate-300 ring-slate-700"
+                  }`}
+                  title="Dynamic industrial tariff slab currently in effect"
+                >
+                  ⚡ {todTariff.slot} TARIFF: ₹{(todTariff.rate_inr ?? 7.50).toFixed(2)}/kWh
+                </span>
+
+                {/* Remote Breaker State Badge */}
+                <span
+                  className={`rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ring-1 ${
+                    breakerStatus === "TRIPPED"
+                      ? "bg-rose-500/20 text-rose-300 ring-rose-500/40 animate-pulse"
+                      : "bg-emerald-500/10 text-emerald-400 ring-emerald-500/20"
+                  }`}
+                >
+                  {breakerStatus === "TRIPPED" ? "BREAKER TRIPPED (LOAD SHED)" : "MAINS ARMED"}
                 </span>
               </div>
               <h1 className="mt-0.5 text-sm font-bold tracking-tight text-white sm:text-base">
@@ -481,8 +632,21 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* Mode Switcher + Connection Status Badge */}
-          <div className="flex flex-wrap items-center gap-2.5">
+          {/* Mode Switcher + Sound Mute + Connection Status Badge */}
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Audio Alarm Mute Toggle */}
+            <button
+              onClick={() => setAlarmMuted(!alarmMuted)}
+              className={`flex items-center gap-1.5 rounded-lg border p-1.5 text-xs transition-colors ${
+                alarmMuted
+                  ? "border-slate-800 bg-slate-900 text-slate-500 hover:text-slate-300"
+                  : "border-blue-500/30 bg-blue-500/10 text-blue-400"
+              }`}
+              title={alarmMuted ? "Audio alarms muted" : "Audio alarms active (Web Audio API)"}
+            >
+              {alarmMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+            </button>
+
             {/* View Mode Toggle */}
             <div className="flex items-center rounded-xl border border-slate-800 bg-slate-900/90 p-1 text-xs">
               <button
@@ -551,7 +715,7 @@ export default function Dashboard() {
       <main className="mx-auto max-w-7xl space-y-6 px-4 py-6 sm:px-6 lg:px-8">
         {/* Offline / Tunnel Waiting Banner */}
         {isConnected === false && (
-          <div className="flex flex-col gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3.5 text-xs text-amber-300 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3.5 text-xs text-amber-300 sm:flex-row sm:items-center sm:justify-between print:hidden">
             <div className="flex items-center gap-2.5">
               <Radio className="h-4 w-4 shrink-0 animate-pulse text-amber-400" />
               <span>
@@ -566,6 +730,29 @@ export default function Dashboard() {
           </div>
         )}
 
+        {/* Remote Circuit Breaker Alert Banner (when tripped) */}
+        {breakerStatus === "TRIPPED" && (
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 rounded-xl border border-rose-600/40 bg-rose-950/40 p-4 text-xs text-rose-300 print:hidden">
+            <div className="flex items-center gap-3">
+              <AlertOctagon className="h-6 w-6 text-rose-400 shrink-0 animate-bounce" />
+              <div>
+                <h4 className="font-bold text-white text-sm">Emergency Load Shedding Active — Mains Disconnected</h4>
+                <p className="text-slate-300">
+                  A remote trip command was issued to the ESP32 edge node. Power has been disconnected to protect circuits.
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={handleToggleBreaker}
+              disabled={isControlling}
+              className="flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 font-bold text-white shadow-md hover:bg-emerald-500 disabled:opacity-50 shrink-0"
+            >
+              <RefreshCw className={`h-4 w-4 ${isControlling ? "animate-spin" : ""}`} />
+              <span>Reset Breaker & Restore Power</span>
+            </button>
+          </div>
+        )}
+
         {viewMode === "office" ? (
           /* ================================================================= */
           /* SIMPLE OFFICE VIEW: Clean, Restrained Industrial Aesthetic       */
@@ -577,14 +764,18 @@ export default function Dashboard() {
                 <div className="flex items-start gap-4">
                   <div
                     className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl ring-1 ${
-                      totalCurrent < 0.20
+                      breakerStatus === "TRIPPED"
+                        ? "bg-rose-500/15 text-rose-400 ring-rose-500/30"
+                        : totalCurrent < 0.20
                         ? "bg-slate-800 text-slate-400 ring-slate-700"
                         : appliances["Electric Iron"]?.state === "ON"
                         ? "bg-amber-500/15 text-amber-400 ring-amber-500/30"
                         : "bg-blue-600/15 text-blue-400 ring-blue-500/30"
                     }`}
                   >
-                    {totalCurrent < 0.20 ? (
+                    {breakerStatus === "TRIPPED" ? (
+                      <AlertOctagon className="h-6 w-6" />
+                    ) : totalCurrent < 0.20 ? (
                       <Power className="h-6 w-6" />
                     ) : appliances["Electric Iron"]?.state === "ON" ? (
                       <Flame className="h-6 w-6" />
@@ -596,7 +787,9 @@ export default function Dashboard() {
                     <div className="flex items-center gap-2">
                       <span
                         className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-bold uppercase tracking-wider ${
-                          totalCurrent < 0.20
+                          breakerStatus === "TRIPPED"
+                            ? "bg-rose-500/20 text-rose-300 ring-1 ring-rose-500/30"
+                            : totalCurrent < 0.20
                             ? "bg-slate-800 text-slate-400 ring-1 ring-slate-700"
                             : appliances["Electric Iron"]?.state === "ON"
                             ? "bg-amber-500/15 text-amber-300 ring-1 ring-amber-500/30"
@@ -605,15 +798,21 @@ export default function Dashboard() {
                       >
                         <span
                           className={`h-2 w-2 rounded-full ${
-                            totalCurrent < 0.20
+                            breakerStatus === "TRIPPED"
+                              ? "bg-rose-400 animate-ping"
+                              : totalCurrent < 0.20
                               ? "bg-slate-400"
                               : appliances["Electric Iron"]?.state === "ON"
                               ? "animate-ping bg-amber-400"
                               : "bg-emerald-400"
                           }`}
                         />
-                        {totalCurrent < 0.20
+                        {breakerStatus === "TRIPPED"
+                          ? "Circuit Breaker Tripped (Safe)"
+                          : totalCurrent < 0.20
                           ? "Office Standby / Idle"
+                          : activeCount > 1
+                          ? `Concurrent Multi-Load Active (${activeCount} Devices)`
                           : appliances["Electric Iron"]?.state === "ON"
                           ? "High Energy Usage Detected"
                           : "Normal Energy Usage"}
@@ -622,8 +821,12 @@ export default function Dashboard() {
                     </div>
 
                     <h2 className="mt-2 text-xl font-bold tracking-tight text-white sm:text-2xl">
-                      {totalCurrent < 0.20
+                      {breakerStatus === "TRIPPED"
+                        ? "Mains Circuit Cut Off via Remote Load Shedding"
+                        : totalCurrent < 0.20
                         ? "All Office Equipment is Currently Switched Off"
+                        : activeCount > 1
+                        ? `Concurrent Loads Active: ${activeAppliancesList.join(" + ")}`
                         : appliances["Electric Iron"]?.state === "ON"
                         ? "Electric Iron is Currently In Use (Heavy Heating Load)"
                         : appliances["Ceiling Fan"]?.state === "ON"
@@ -632,30 +835,48 @@ export default function Dashboard() {
                     </h2>
 
                     <p className="mt-1 text-sm text-slate-400">
-                      {totalCurrent < 0.20
+                      {breakerStatus === "TRIPPED"
+                        ? "The onboard contactor was remotely opened. Zero current is flowing through the line."
+                        : totalCurrent < 0.20
                         ? "Zero electrical waste detected. The facility is in baseline standby mode drawing minimal power."
                         : appliances["Electric Iron"]?.state === "ON"
-                        ? `The office is currently drawing ${totalPower.toFixed(0)} Watts of heating power (~₹${((totalPower / 1000) * 7.5).toFixed(2)}/hour). Please ensure the iron is turned off when finished.`
-                        : `Current draw is ${totalPower.toFixed(0)} Watts with an operating run cost of ~₹${((totalPower / 1000) * 7.5).toFixed(2)} per hour.`}
+                        ? `The office is currently drawing ${totalPower.toFixed(0)} Watts of heating power (~₹${((totalPower / 1000) * (todTariff.rate_inr ?? 7.5)).toFixed(2)}/hour at the current ${todTariff.slot} tariff). Please ensure the iron is turned off when finished.`
+                        : `Current draw is ${totalPower.toFixed(0)} Watts with an operating run cost of ~₹${((totalPower / 1000) * (todTariff.rate_inr ?? 7.5)).toFixed(2)} per hour.`}
                     </p>
                   </div>
                 </div>
 
-                <div className="shrink-0 rounded-xl border border-slate-800 bg-slate-950/70 p-4 text-center sm:text-right">
-                  <div className="text-xs uppercase tracking-wider text-slate-500">Current Run Rate</div>
-                  <div className="mt-1 font-mono text-2xl font-bold text-white">
-                    ₹{((totalPower / 1000.0) * 7.5).toFixed(2)}
-                    <span className="text-xs font-semibold text-slate-500 font-sans"> / hour</span>
+                <div className="shrink-0 rounded-xl border border-slate-800 bg-slate-950/70 p-4 text-center sm:text-right flex flex-col justify-between">
+                  <div>
+                    <div className="text-xs uppercase tracking-wider text-slate-500">Current Run Rate</div>
+                    <div className="mt-1 font-mono text-2xl font-bold text-white">
+                      ₹{((totalPower / 1000.0) * (todTariff.rate_inr ?? 7.5)).toFixed(2)}
+                      <span className="text-xs font-semibold text-slate-500 font-sans"> / hour</span>
+                    </div>
+                    <div className="mt-1 text-[11px] text-slate-400">
+                      {activeCount} active appliance{activeCount !== 1 ? "s" : ""}
+                    </div>
                   </div>
-                  <div className="mt-1 text-[11px] text-slate-400">
-                    {activeCount} active appliance{activeCount !== 1 ? "s" : ""}
-                  </div>
+
+                  {/* Remote Load Shed Control Button */}
+                  <button
+                    onClick={handleToggleBreaker}
+                    disabled={isControlling}
+                    className={`mt-3 flex items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-all ${
+                      breakerStatus === "TRIPPED"
+                        ? "bg-emerald-600 hover:bg-emerald-500 text-white"
+                        : "border border-rose-500/40 bg-rose-500/10 text-rose-300 hover:bg-rose-500/20"
+                    }`}
+                  >
+                    <Power className="h-3.5 w-3.5" />
+                    <span>{breakerStatus === "TRIPPED" ? "Reset Breaker" : "Remote Load Shed"}</span>
+                  </button>
                 </div>
               </div>
             </section>
 
-            {/* 2. Three Clean Office KPI Cards */}
-            <section className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            {/* 2. Four Clean Office KPI Cards */}
+            <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
               {/* Office Electricity Bill Card */}
               <div className="relative overflow-hidden rounded-xl border border-slate-800 bg-slate-900/60 p-5 shadow-sm">
                 <div className="flex items-center justify-between">
@@ -672,12 +893,45 @@ export default function Dashboard() {
                   </span>
                   <span className="text-xs font-medium text-slate-400">Session Total</span>
                 </div>
-                <p className="mt-1 text-xs text-slate-500">Commercial tariff: ₹7.50 / unit (kWh)</p>
+                <p className="mt-1 text-xs text-slate-500">
+                  {todTariff.slot} Slab: ₹{(todTariff.rate_inr ?? 7.50).toFixed(2)}/kWh
+                </p>
                 <div className="mt-4 flex items-center justify-between border-t border-slate-800 pt-3 text-xs">
                   <span className="text-slate-400">Est. Monthly Bill:</span>
                   <span className="font-mono font-bold text-slate-200">
                     ₹{(analytics.projected_monthly_inr ?? 0).toFixed(0)} / mo
                   </span>
+                </div>
+              </div>
+
+              {/* Time-of-Day Tariff & Savings Optimizer Card */}
+              <div className="relative overflow-hidden rounded-xl border border-slate-800 bg-slate-900/60 p-5 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                    ToD Tariff Optimizer
+                  </span>
+                  <div className="rounded-xl bg-blue-500/10 p-2.5 text-blue-400">
+                    <Clock className="h-5 w-5" />
+                  </div>
+                </div>
+                <div className="mt-3 flex items-baseline gap-2">
+                  <span className="font-mono text-2xl font-extrabold tracking-tight text-white">
+                    {todTariff.slot}
+                  </span>
+                  <span className="text-xs font-semibold text-blue-400">
+                    ₹{(todTariff.rate_inr ?? 7.50).toFixed(2)} / kWh
+                  </span>
+                </div>
+                <p className="mt-1 text-xs text-slate-400 truncate">
+                  {todTariff.slot === "PEAK"
+                    ? "Peak hours (6 PM - 10 PM) in effect."
+                    : todTariff.slot === "OFF-PEAK"
+                    ? "Off-peak hours active (Max discount)."
+                    : "Standard daytime commercial tariff."}
+                </p>
+                <div className="mt-4 flex items-center justify-between border-t border-slate-800 pt-3 text-xs">
+                  <span className="text-slate-400">Off-Peak Potential:</span>
+                  <span className="font-bold text-emerald-400">Save up to 50%</span>
                 </div>
               </div>
 
@@ -726,7 +980,7 @@ export default function Dashboard() {
                   />
                   <span className={maintenance.bearing_fault ? "text-amber-300 font-semibold" : "text-emerald-300"}>
                     {maintenance.bearing_fault
-                      ? "Check Ceiling Fan for loose mounting / bearing wear"
+                      ? "Check Ceiling Fan for loose mounting"
                       : "All monitored devices operating within safety limits"}
                   </span>
                 </div>
@@ -756,7 +1010,7 @@ export default function Dashboard() {
               </div>
             </section>
 
-            {/* 3. Restrained Office Appliance Cards */}
+            {/* 3. Restrained Office Appliance Cards with Duty Cycles & Running Hours */}
             <section>
               <div className="mb-3 flex items-center justify-between">
                 <div>
@@ -764,7 +1018,7 @@ export default function Dashboard() {
                     Office Appliances
                   </h3>
                   <p className="text-xs text-slate-400">
-                    Real-time status of monitored connected equipment
+                    Real-time status, running hours, and duty cycle of connected equipment
                   </p>
                 </div>
                 <span className="rounded-md border border-slate-800 bg-slate-900 px-2.5 py-1 text-xs font-medium text-slate-300">
@@ -777,6 +1031,7 @@ export default function Dashboard() {
                   const meta = getApplianceMeta(name);
                   const IconComponent = meta.icon;
                   const isActive = detail.state === "ON";
+                  const duty = dutyCycles[name] || { runtime_str: "0m 0s", duty_cycle_pct: 0 };
 
                   return (
                     <div
@@ -812,7 +1067,20 @@ export default function Dashboard() {
                         </span>
                       </div>
 
-                      <div className="mt-5 flex items-baseline justify-between border-t border-slate-800 pt-3">
+                      {/* Cumulative Duty Cycle & Running Hours Meter */}
+                      <div className="mt-4 flex items-center justify-between rounded-lg bg-slate-950/60 p-2.5 text-xs border border-slate-800/80">
+                        <div className="flex items-center gap-1.5 text-slate-400">
+                          <Clock className="h-3.5 w-3.5 text-blue-400" />
+                          <span>Active Time:</span>
+                          <span className="font-mono font-semibold text-slate-200">{duty.runtime_str || "0m"}</span>
+                        </div>
+                        <div className="text-slate-400">
+                          <span>Duty: </span>
+                          <span className="font-mono font-bold text-blue-400">{duty.duty_cycle_pct ?? 0}%</span>
+                        </div>
+                      </div>
+
+                      <div className="mt-4 flex items-baseline justify-between border-t border-slate-800 pt-3">
                         <div>
                           <span className="text-[11px] uppercase tracking-wider text-slate-500">Power Draw</span>
                           <div className="font-mono text-lg font-bold text-white">
@@ -822,7 +1090,7 @@ export default function Dashboard() {
                         <div className="text-right">
                           <span className="text-[11px] uppercase tracking-wider text-slate-500">Run Cost</span>
                           <div className="font-mono text-xs font-bold text-slate-300">
-                            {isActive ? `~₹${(((detail.power_w ?? 0) / 1000) * 7.5).toFixed(2)}/hr` : "₹0.00"}
+                            {isActive ? `~₹${(((detail.power_w ?? 0) / 1000) * (todTariff.rate_inr ?? 7.5)).toFixed(2)}/hr` : "₹0.00"}
                           </div>
                         </div>
                       </div>
@@ -833,7 +1101,7 @@ export default function Dashboard() {
             </section>
 
             {/* 4. Switch to Engineering View Callout Banner */}
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 rounded-xl border border-slate-800 bg-slate-900/40 p-4 sm:p-5">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 rounded-xl border border-slate-800 bg-slate-900/40 p-4 sm:p-5 print:hidden">
               <div className="flex items-center gap-3">
                 <div className="rounded-xl bg-blue-500/10 p-2.5 text-blue-400 ring-1 ring-blue-500/20">
                   <Cpu className="h-5 w-5" />
@@ -886,7 +1154,7 @@ export default function Dashboard() {
                 </div>
               </div>
 
-              {/* Active Total Power */}
+              {/* Active Total Power & Peak Demand */}
               <div className="relative overflow-hidden rounded-xl border border-slate-800 bg-slate-900/60 p-5 shadow-sm">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-medium uppercase tracking-wider text-slate-400">
@@ -905,11 +1173,9 @@ export default function Dashboard() {
                   </span>
                 </div>
                 <p className="mt-1 text-xs text-slate-500">Real power (V_rms × I_rms)</p>
-                <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-slate-800">
-                  <div
-                    className="h-full rounded-full bg-blue-500 transition-all duration-300"
-                    style={{ width: `${Math.min((totalPower / 3500.0) * 100, 100)}%` }}
-                  />
+                <div className="mt-3 flex items-center justify-between text-[11px] text-slate-400 border-t border-slate-800 pt-2">
+                  <span>Peak Demand:</span>
+                  <span className="font-mono font-bold text-slate-200">{peakDemandKw.toFixed(3)} kW</span>
                 </div>
               </div>
 
@@ -936,29 +1202,52 @@ export default function Dashboard() {
                 </div>
               </div>
 
-              {/* Active Disaggregated Loads */}
-              <div className="relative overflow-hidden rounded-xl border border-slate-800 bg-slate-900/60 p-5 shadow-sm">
+              {/* Two-Way Remote Circuit Breaker / Load Shedding Tile */}
+              <div
+                className={`relative overflow-hidden rounded-xl border p-5 shadow-sm transition-all ${
+                  breakerStatus === "TRIPPED"
+                    ? "border-rose-600/50 bg-rose-950/30 ring-1 ring-rose-500/40"
+                    : "border-slate-800 bg-slate-900/60"
+                }`}
+              >
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-medium uppercase tracking-wider text-slate-400">
-                    Active Loads
+                    Remote Load Shedding
                   </span>
-                  <div className="rounded-lg bg-blue-500/10 p-2 text-blue-400 ring-1 ring-blue-500/20">
+                  <div
+                    className={`rounded-lg p-2 ${
+                      breakerStatus === "TRIPPED"
+                        ? "bg-rose-500/20 text-rose-400"
+                        : "bg-emerald-500/10 text-emerald-400"
+                    }`}
+                  >
                     <Power className="h-5 w-5" />
                   </div>
                 </div>
-                <div className="mt-3 flex items-baseline gap-2">
-                  <span className="font-mono text-3xl font-extrabold tracking-tight text-white">
-                    {activeCount}
+                <div className="mt-2 flex items-baseline gap-2">
+                  <span
+                    className={`font-mono text-2xl font-extrabold ${
+                      breakerStatus === "TRIPPED" ? "text-rose-400" : "text-white"
+                    }`}
+                  >
+                    {breakerStatus}
                   </span>
-                  <span className="text-sm font-medium text-slate-400">
-                    / {applianceKeys.length} Monitored
+                  <span className="text-xs font-medium text-slate-400">
+                    {breakerStatus === "TRIPPED" ? "Power Cut" : "Active"}
                   </span>
                 </div>
-                <p className="mt-1 text-xs text-slate-500">Disaggregated state status</p>
-                <div className="mt-3 flex items-center gap-1 text-[11px] text-blue-400">
-                  <Server className="h-3.5 w-3.5" />
-                  <span>Edge Node Streaming</span>
-                </div>
+                <p className="mt-1 text-xs text-slate-500">Full-duplex MQTT control</p>
+                <button
+                  onClick={handleToggleBreaker}
+                  disabled={isControlling}
+                  className={`mt-3 w-full rounded-lg py-1.5 text-xs font-bold transition-all shadow-sm ${
+                    breakerStatus === "TRIPPED"
+                      ? "bg-emerald-600 hover:bg-emerald-500 text-white"
+                      : "bg-rose-600 hover:bg-rose-500 text-white"
+                  }`}
+                >
+                  {breakerStatus === "TRIPPED" ? "Reset Breaker" : "Emergency Load Shed"}
+                </button>
               </div>
             </section>
 
@@ -982,7 +1271,9 @@ export default function Dashboard() {
                     ({(analytics.energy_kwh ?? 0).toFixed(4)} kWh)
                   </span>
                 </div>
-                <p className="mt-1 text-xs text-slate-500">Slab Tariff: ₹{analytics.tariff_rate_inr ?? 7.50} / kWh</p>
+                <p className="mt-1 text-xs text-slate-500">
+                  {todTariff.slot} Tariff: ₹{(todTariff.rate_inr ?? 7.50).toFixed(2)} / kWh
+                </p>
                 <div className="mt-3 flex items-center justify-between text-[11px] text-slate-400 border-t border-slate-800 pt-2.5">
                   <span>Projected Monthly:</span>
                   <span className="font-mono font-bold text-slate-200">
@@ -1080,15 +1371,15 @@ export default function Dashboard() {
               </div>
             </section>
 
-            {/* Dynamic Disaggregated Appliance UI Cards */}
+            {/* Dynamic Disaggregated Appliance UI Cards with Duty Cycles */}
             <section>
               <div className="mb-3 flex items-center justify-between">
                 <div>
                   <h2 className="text-sm font-bold uppercase tracking-wider text-slate-300">
-                    Disaggregated Appliance Telemetry
+                    Disaggregated Appliance Telemetry & Duty Cycles
                   </h2>
                   <p className="text-xs text-slate-400">
-                    Real-time state and individual draws received from edge node
+                    Simultaneous multi-load states, active power draws, and operational duty cycles
                   </p>
                 </div>
                 <span className="rounded-md border border-slate-800 bg-slate-900 px-2.5 py-0.5 text-xs font-mono text-slate-300">
@@ -1107,6 +1398,7 @@ export default function Dashboard() {
                     const meta = getApplianceMeta(name);
                     const IconComponent = meta.icon;
                     const isActive = detail.state === "ON";
+                    const duty = dutyCycles[name] || { runtime_str: "0m 0s", duty_cycle_pct: 0 };
 
                     return (
                       <div
@@ -1147,8 +1439,21 @@ export default function Dashboard() {
                           </span>
                         </div>
 
+                        {/* Duty Cycle & Runtime Counter */}
+                        <div className="mt-3.5 flex items-center justify-between rounded-lg bg-slate-950/70 p-2 text-xs border border-slate-800/80">
+                          <div className="flex items-center gap-1.5 text-slate-400">
+                            <Clock className="h-3 w-3 text-blue-400" />
+                            <span>Run:</span>
+                            <span className="font-mono text-slate-200 font-semibold">{duty.runtime_str || "0m"}</span>
+                          </div>
+                          <div className="text-slate-400">
+                            <span>Duty: </span>
+                            <span className="font-mono font-bold text-blue-400">{duty.duty_cycle_pct ?? 0}%</span>
+                          </div>
+                        </div>
+
                         {/* Current & Power Readouts */}
-                        <div className="mt-5 flex items-baseline justify-between border-t border-slate-800 pt-4">
+                        <div className="mt-4 flex items-baseline justify-between border-t border-slate-800 pt-3">
                           <div>
                             <span className="text-[11px] uppercase tracking-wider text-slate-500">Current</span>
                             <div className="flex items-baseline gap-1">
@@ -1374,7 +1679,7 @@ export default function Dashboard() {
             </section>
 
             {/* Live Recharts Line Graph Section */}
-            <section className="rounded-xl border border-slate-800 bg-slate-900/60 p-5 shadow-sm backdrop-blur-md sm:p-6">
+            <section className="rounded-xl border border-slate-800 bg-slate-900/60 p-5 shadow-sm backdrop-blur-md sm:p-6 print:hidden">
               <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <div className="flex items-center gap-2">
@@ -1537,7 +1842,7 @@ export default function Dashboard() {
               </div>
             </section>
 
-            {/* Event Audit Trail Table & CSV Export */}
+            {/* Event Audit Trail Table, Print Report & CSV Export */}
             <section className="rounded-xl border border-slate-800 bg-slate-900/60 p-5 shadow-sm backdrop-blur-md sm:p-6">
               <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex items-center gap-3">
@@ -1559,14 +1864,25 @@ export default function Dashboard() {
                   </div>
                 </div>
 
-                {/* Export CSV Button */}
-                <button
-                  onClick={handleExportCSV}
-                  className="flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-xs font-bold text-white shadow-sm ring-1 ring-blue-500/40 transition-all hover:bg-blue-500 active:scale-95"
-                >
-                  <Download className="h-4 w-4" />
-                  <span>Export Audit CSV</span>
-                </button>
+                {/* Action Buttons: Print Report + CSV Export */}
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    onClick={handlePrintShiftReport}
+                    className="flex items-center justify-center gap-2 rounded-xl border border-slate-700 bg-slate-900 px-3.5 py-2 text-xs font-bold text-slate-200 shadow-sm transition-all hover:bg-slate-800 hover:text-white active:scale-95"
+                    title="Generate printable shift audit report"
+                  >
+                    <Printer className="h-4 w-4 text-blue-400" />
+                    <span>Print Shift Summary</span>
+                  </button>
+
+                  <button
+                    onClick={handleExportCSV}
+                    className="flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white shadow-sm ring-1 ring-blue-500/40 transition-all hover:bg-blue-500 active:scale-95"
+                  >
+                    <Download className="h-4 w-4" />
+                    <span>Export Audit CSV</span>
+                  </button>
+                </div>
               </div>
 
               {events.length === 0 ? (
@@ -1632,6 +1948,64 @@ export default function Dashboard() {
             </section>
           </div>
         )}
+
+        {/* Printable Executive Shift Summary Handover Section (Triggered via Print) */}
+        <section className="hidden print:block p-8 bg-white text-black font-sans">
+          <div className="border-b-2 border-black pb-4 mb-6">
+            <h1 className="text-2xl font-bold uppercase tracking-tight">AIoT NILM Shift Handover & Electrical Audit Report</h1>
+            <p className="text-sm text-gray-600 mt-1">Generated: {new Date().toLocaleString()} | Facility Sector A</p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4 mb-6 text-sm">
+            <div className="border p-3 rounded">
+              <span className="font-bold">Total Energy Consumed:</span> {(analytics.energy_kwh ?? 0).toFixed(4)} kWh
+            </div>
+            <div className="border p-3 rounded">
+              <span className="font-bold">Total Session Cost:</span> ₹{(analytics.cost_inr ?? 0).toFixed(2)} ({todTariff.slot} Tariff)
+            </div>
+            <div className="border p-3 rounded">
+              <span className="font-bold">Peak Demand:</span> {peakDemandKw.toFixed(3)} kW
+            </div>
+            <div className="border p-3 rounded">
+              <span className="font-bold">Total Carbon Emitted:</span> {(analytics.carbon_g ?? 0).toFixed(1)} g CO₂
+            </div>
+          </div>
+
+          <h3 className="font-bold text-base mb-2">Appliance Running Hours & Duty Cycles:</h3>
+          <table className="w-full text-left text-xs border mb-6">
+            <thead>
+              <tr className="bg-gray-100 border-b">
+                <th className="p-2">Appliance</th>
+                <th className="p-2">Status</th>
+                <th className="p-2">Running Time</th>
+                <th className="p-2">Duty Cycle (%)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {Object.entries(dutyCycles).map(([name, duty]) => (
+                <tr key={`print-${name}`} className="border-b">
+                  <td className="p-2 font-semibold">{name}</td>
+                  <td className="p-2">{appliances[name]?.state ?? "OFF"}</td>
+                  <td className="p-2 font-mono">{duty.runtime_str}</td>
+                  <td className="p-2 font-mono">{duty.duty_cycle_pct}%</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+
+          <div className="mt-12 flex justify-between text-xs pt-8 border-t">
+            <div>
+              <p className="font-bold">Facility Operations Engineer</p>
+              <div className="mt-8 border-b border-black w-48"></div>
+              <p className="mt-1 text-gray-500">Sign & Stamp</p>
+            </div>
+            <div>
+              <p className="font-bold">Energy Audit Supervisor</p>
+              <div className="mt-8 border-b border-black w-48"></div>
+              <p className="mt-1 text-gray-500">Sign & Stamp</p>
+            </div>
+          </div>
+        </section>
       </main>
     </div>
   );
