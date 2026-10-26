@@ -36,6 +36,8 @@ import {
   Download,
   Timer,
   FileSpreadsheet,
+  Building2,
+  ArrowRight,
 } from "lucide-react";
 
 // Permanent Render Cloud Backend Endpoint
@@ -213,6 +215,7 @@ function getApplianceMeta(name: string) {
 
 export default function Dashboard() {
   const [mounted, setMounted] = useState(false);
+  const [viewMode, setViewMode] = useState<"office" | "engineering">("office");
   const [isConnected, setIsConnected] = useState<boolean | null>(null);
   const [statusMode, setStatusMode] = useState<string>("Connecting...");
   const [lastUpdated, setLastUpdated] = useState<string>("");
@@ -481,8 +484,37 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* Connection Status Badge */}
-          <div className="flex items-center gap-3">
+          {/* Mode Switcher + Connection Status Badge */}
+          <div className="flex flex-wrap items-center gap-3">
+            {/* View Mode Toggle */}
+            <div className="flex items-center rounded-xl border border-slate-800 bg-slate-900/90 p-1 text-xs">
+              <button
+                onClick={() => setViewMode("office")}
+                className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 font-medium transition-all ${
+                  viewMode === "office"
+                    ? "bg-indigo-600 text-white shadow-md font-semibold"
+                    : "text-slate-400 hover:text-white"
+                }`}
+                title="Simplified view for office staff & facility managers"
+              >
+                <Building2 className="h-3.5 w-3.5" />
+                <span>Office View</span>
+              </button>
+              <button
+                onClick={() => setViewMode("engineering")}
+                className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 font-medium transition-all ${
+                  viewMode === "engineering"
+                    ? "bg-purple-600 text-white shadow-md font-semibold"
+                    : "text-slate-400 hover:text-white"
+                }`}
+                title="Deep diagnostic view with waveforms & TinyML benchmark"
+              >
+                <Cpu className="h-3.5 w-3.5" />
+                <span>Engineering View</span>
+              </button>
+            </div>
+
+            {/* Connection Status Badge */}
             <div
               className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium ring-1 transition-all ${
                 isConnected === true
@@ -537,7 +569,323 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* Live Metric KPI Cards */}
+        {viewMode === "office" ? (
+          /* ================================================================= */
+          /* SIMPLE OFFICE VIEW: Plain English, Glanceable & Actionable        */
+          /* ================================================================= */
+          <div className="space-y-6">
+            {/* 1. Large Glanceable Status Hero Banner */}
+            <section
+              className={`relative overflow-hidden rounded-3xl border p-6 shadow-xl backdrop-blur-md transition-all ${
+                totalCurrent < 0.20
+                  ? "border-slate-800 bg-slate-900/60"
+                  : appliances["Electric Iron"]?.state === "ON"
+                  ? "border-rose-500/40 bg-gradient-to-r from-rose-950/40 via-slate-900/70 to-slate-900/90"
+                  : "border-emerald-500/40 bg-gradient-to-r from-emerald-950/40 via-slate-900/70 to-slate-900/90"
+              }`}
+            >
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-start gap-4">
+                  <div
+                    className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl ring-1 ${
+                      totalCurrent < 0.20
+                        ? "bg-slate-800 text-slate-400 ring-slate-700"
+                        : appliances["Electric Iron"]?.state === "ON"
+                        ? "bg-rose-500/20 text-rose-400 ring-rose-500/40"
+                        : "bg-emerald-500/20 text-emerald-400 ring-emerald-500/40"
+                    }`}
+                  >
+                    {totalCurrent < 0.20 ? (
+                      <Power className="h-7 w-7" />
+                    ) : appliances["Electric Iron"]?.state === "ON" ? (
+                      <Flame className="h-7 w-7" />
+                    ) : (
+                      <Zap className="h-7 w-7" />
+                    )}
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-bold uppercase tracking-wider ${
+                          totalCurrent < 0.20
+                            ? "bg-slate-800 text-slate-300"
+                            : appliances["Electric Iron"]?.state === "ON"
+                            ? "bg-rose-500/20 text-rose-300 ring-1 ring-rose-500/40"
+                            : "bg-emerald-500/20 text-emerald-300 ring-1 ring-emerald-500/40"
+                        }`}
+                      >
+                        <span
+                          className={`h-2 w-2 rounded-full ${
+                            totalCurrent < 0.20
+                              ? "bg-slate-400"
+                              : appliances["Electric Iron"]?.state === "ON"
+                              ? "animate-ping bg-rose-400"
+                              : "bg-emerald-400"
+                          }`}
+                        />
+                        {totalCurrent < 0.20
+                          ? "Office Standby / Idle"
+                          : appliances["Electric Iron"]?.state === "ON"
+                          ? "High Energy Usage Detected"
+                          : "Normal Energy Usage"}
+                      </span>
+                      <span className="text-xs text-slate-400">Updated: {lastUpdated || "--:--:--"}</span>
+                    </div>
+
+                    <h2 className="mt-2 text-xl font-bold tracking-tight text-white sm:text-2xl">
+                      {totalCurrent < 0.20
+                        ? "All Office Equipment is Currently Switched Off"
+                        : appliances["Electric Iron"]?.state === "ON"
+                        ? "Electric Iron is Currently In Use (Heavy Heating Load)"
+                        : appliances["Ceiling Fan"]?.state === "ON"
+                        ? "Ceiling Fan is Running (Motor Operating Smoothly)"
+                        : "Fast Charger Adapter is Active (Charging Device)"}
+                    </h2>
+
+                    <p className="mt-1 text-sm text-slate-300">
+                      {totalCurrent < 0.20
+                        ? "Zero electrical waste detected. The office is in standby mode drawing minimal baseline power."
+                        : appliances["Electric Iron"]?.state === "ON"
+                        ? `The office is currently drawing ${totalPower.toFixed(0)} Watts of heating power (~₹${((totalPower / 1000) * 7.5).toFixed(2)}/hour). Please ensure the iron is turned off when finished.`
+                        : `Current draw is ${totalPower.toFixed(0)} Watts with an operating run cost of ~₹${((totalPower / 1000) * 7.5).toFixed(2)} per hour.`}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="shrink-0 rounded-2xl border border-slate-800 bg-slate-950/70 p-4 text-center sm:text-right">
+                  <div className="text-xs uppercase tracking-wider text-slate-400">Current Run Rate</div>
+                  <div className="mt-1 font-mono text-2xl font-extrabold text-white">
+                    ₹{((totalPower / 1000.0) * 7.5).toFixed(2)}
+                    <span className="text-xs font-semibold text-slate-400 font-sans"> / hour</span>
+                  </div>
+                  <div className="mt-1 text-[11px] text-slate-400">
+                    {activeCount} active appliance{activeCount !== 1 ? "s" : ""}
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            {/* 2. Three Clean Office KPI Cards */}
+            <section className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+              {/* Office Electricity Bill Card */}
+              <div className="relative overflow-hidden rounded-2xl border border-slate-800/80 bg-slate-900/60 p-5 shadow-lg backdrop-blur-md">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                    Office Electricity Bill
+                  </span>
+                  <div className="rounded-xl bg-amber-500/10 p-2.5 text-amber-400">
+                    <Coins className="h-5 w-5" />
+                  </div>
+                </div>
+                <div className="mt-3 flex items-baseline gap-2">
+                  <span className="font-mono text-3xl font-extrabold tracking-tight text-white">
+                    ₹{(analytics.cost_inr ?? 0).toFixed(2)}
+                  </span>
+                  <span className="text-xs font-medium text-amber-400">Session Total</span>
+                </div>
+                <p className="mt-1 text-xs text-slate-400">Commercial tariff: ₹7.50 / unit (kWh)</p>
+                <div className="mt-4 flex items-center justify-between border-t border-slate-800/80 pt-3 text-xs">
+                  <span className="text-slate-400">Est. Monthly Bill:</span>
+                  <span className="font-mono font-bold text-amber-300">
+                    ₹{(analytics.projected_monthly_inr ?? 0).toFixed(0)} / mo
+                  </span>
+                </div>
+              </div>
+
+              {/* Equipment Health & Safety Alert */}
+              <div className="relative overflow-hidden rounded-2xl border border-slate-800/80 bg-slate-900/60 p-5 shadow-lg backdrop-blur-md">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                    Equipment Safety & Health
+                  </span>
+                  <div
+                    className={`rounded-xl p-2.5 ${
+                      maintenance.bearing_fault
+                        ? "bg-rose-500/10 text-rose-400 ring-1 ring-rose-500/30"
+                        : "bg-emerald-500/10 text-emerald-400 ring-1 ring-emerald-500/30"
+                    }`}
+                  >
+                    {maintenance.bearing_fault ? (
+                      <AlertTriangle className="h-5 w-5" />
+                    ) : (
+                      <ShieldCheck className="h-5 w-5" />
+                    )}
+                  </div>
+                </div>
+                <div className="mt-3 flex items-baseline gap-2">
+                  <span className="font-mono text-3xl font-extrabold tracking-tight text-white">
+                    {maintenance.health_score ?? 100}%
+                  </span>
+                  <span
+                    className={`text-xs font-semibold ${
+                      maintenance.bearing_fault ? "text-rose-400" : "text-emerald-400"
+                    }`}
+                  >
+                    {maintenance.bearing_fault ? "Inspection Needed" : "Optimal Condition"}
+                  </span>
+                </div>
+                <p className="mt-1 text-xs text-slate-400 truncate">
+                  {maintenance.bearing_fault
+                    ? "Abnormal vibration detected on fan motor."
+                    : "Zero electrical faults or mechanical issues detected."}
+                </p>
+                <div className="mt-4 flex items-center gap-1.5 border-t border-slate-800/80 pt-3 text-xs">
+                  <span
+                    className={`h-2 w-2 rounded-full ${
+                      maintenance.bearing_fault ? "animate-ping bg-rose-400" : "bg-emerald-400"
+                    }`}
+                  />
+                  <span className={maintenance.bearing_fault ? "text-rose-300 font-semibold" : "text-emerald-300"}>
+                    {maintenance.bearing_fault
+                      ? "Check Ceiling Fan for loose mounting / bearing wear"
+                      : "All monitored devices operating within safety limits"}
+                  </span>
+                </div>
+              </div>
+
+              {/* Eco & Carbon Impact */}
+              <div className="relative overflow-hidden rounded-2xl border border-slate-800/80 bg-slate-900/60 p-5 shadow-lg backdrop-blur-md">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                    Office Carbon Footprint
+                  </span>
+                  <div className="rounded-xl bg-teal-500/10 p-2.5 text-teal-400">
+                    <Leaf className="h-5 w-5" />
+                  </div>
+                </div>
+                <div className="mt-3 flex items-baseline gap-2">
+                  <span className="font-mono text-3xl font-extrabold tracking-tight text-white">
+                    {(analytics.carbon_g ?? 0).toFixed(1)}
+                  </span>
+                  <span className="text-sm font-semibold text-teal-400">g CO₂</span>
+                </div>
+                <p className="mt-1 text-xs text-slate-400">Calculated from total consumed energy</p>
+                <div className="mt-4 flex items-center justify-between border-t border-slate-800/80 pt-3 text-xs">
+                  <span className="text-slate-400">Efficiency Rating:</span>
+                  <span className="font-bold text-teal-300">Grade A (Eco-Friendly)</span>
+                </div>
+              </div>
+            </section>
+
+            {/* 3. Friendly Office Appliance Cards (Plain English) */}
+            <section>
+              <div className="mb-3 flex items-center justify-between">
+                <div>
+                  <h3 className="text-base font-bold tracking-tight text-white sm:text-lg">
+                    Office Appliances
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    See what equipment is currently running and what is switched off
+                  </p>
+                </div>
+                <span className="rounded-full bg-slate-800 px-3 py-1 text-xs font-medium text-slate-300">
+                  {activeCount} of {applianceKeys.length} Running
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                {Object.entries(appliances).map(([name, detail]) => {
+                  const meta = getApplianceMeta(name);
+                  const IconComponent = meta.icon;
+                  const isActive = detail.state === "ON";
+
+                  return (
+                    <div
+                      key={`office-${name}`}
+                      className={`relative overflow-hidden rounded-2xl border p-5 shadow-md backdrop-blur-md transition-all duration-300 ${
+                        isActive
+                          ? "border-slate-700 bg-slate-900/90 ring-1"
+                          : "border-slate-800/70 bg-slate-900/40 opacity-70"
+                      }`}
+                      style={{
+                        borderColor: isActive ? `${meta.color}70` : undefined,
+                      }}
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-center gap-3">
+                          <div
+                            className="flex h-12 w-12 items-center justify-center rounded-2xl"
+                            style={{
+                              backgroundColor: `${meta.color}20`,
+                              color: meta.color,
+                            }}
+                          >
+                            <IconComponent
+                              className={`h-6 w-6 ${isActive && meta.spinOnActive ? "animate-spin" : ""}`}
+                              style={{ animationDuration: "3s" }}
+                            />
+                          </div>
+                          <div>
+                            <h4 className="font-bold text-white text-base">{name}</h4>
+                            <p className="text-xs text-slate-400">
+                              {name === "Electric Iron"
+                                ? "Heavy Thermal Heating"
+                                : name === "Ceiling Fan"
+                                ? "Office Room Cooling"
+                                : "Laptop / Phone Charger"}
+                            </p>
+                          </div>
+                        </div>
+
+                        <span
+                          className={`rounded-full px-2.5 py-1 text-xs font-bold ${
+                            isActive
+                              ? "bg-emerald-500/20 text-emerald-300 ring-1 ring-emerald-500/40"
+                              : "bg-slate-800 text-slate-400"
+                          }`}
+                        >
+                          {isActive ? "IN USE" : "TURNED OFF"}
+                        </span>
+                      </div>
+
+                      <div className="mt-5 flex items-baseline justify-between border-t border-slate-800/80 pt-3">
+                        <div>
+                          <span className="text-[11px] uppercase tracking-wider text-slate-400">Power Draw</span>
+                          <div className="font-mono text-xl font-bold text-white">
+                            {isActive ? `${(detail.power_w ?? 0).toFixed(0)} Watts` : "0 Watts"}
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-[11px] uppercase tracking-wider text-slate-400">Cost Rate</span>
+                          <div className="font-mono text-xs font-bold" style={{ color: meta.color }}>
+                            {isActive ? `~₹${(((detail.power_w ?? 0) / 1000) * 7.5).toFixed(2)}/hr` : "₹0.00"}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+
+            {/* 4. Switch to Engineering View Callout Banner */}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 rounded-2xl border border-slate-800 bg-slate-900/50 p-5">
+              <div className="flex items-center gap-3">
+                <div className="rounded-xl bg-purple-500/10 p-2.5 text-purple-400">
+                  <Cpu className="h-5 w-5" />
+                </div>
+                <div>
+                  <h4 className="text-sm font-bold text-white">Facility Engineer or Lab Evaluator?</h4>
+                  <p className="text-xs text-slate-400">
+                    Switch to Engineering View for live waveforms, 3-axis accelerometer vectors, microsecond latency benchmarks, and CSV audit downloads.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setViewMode("engineering")}
+                className="flex items-center gap-2 rounded-xl bg-purple-600 px-4 py-2.5 text-xs font-bold text-white shadow-lg transition-all hover:bg-purple-500 active:scale-95 shrink-0"
+              >
+                <span>Switch to Engineering View</span>
+                <ArrowRight className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        ) : (
+          /* ================================================================= */
+          /* ADVANCED ENGINEERING VIEW: Full Waveforms, IMU, CSV & TinyML Bench*/
+          /* ================================================================= */
+          <div className="space-y-6">
+            {/* Live Metric KPI Cards */}
         <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {/* Total RMS Current */}
           <div className="relative overflow-hidden rounded-2xl border border-slate-800/80 bg-slate-900/60 p-5 shadow-lg backdrop-blur-md">
@@ -1303,7 +1651,9 @@ export default function Dashboard() {
             </div>
           )}
         </section>
-      </main>
+      </div>
+    )}
+  </main>
     </div>
   );
 }
