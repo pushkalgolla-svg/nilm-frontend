@@ -50,6 +50,28 @@ import {
 const API_URL = "https://nilm-backend.onrender.com/api/status";
 const CONTROL_API_URL = "https://nilm-backend.onrender.com/api/control";
 
+export type ConnectionState = "connecting" | "waking_server" | "live" | "stale" | "offline" | "error";
+
+export interface AuditRecord {
+  id: number;
+  timestamp: string;
+  command_id: string;
+  action: string;
+  operator: string;
+  status: string;
+  breaker_status: string;
+  execution_time_ms: number;
+}
+
+export interface EdgeNodeInfo {
+  device_id?: string;
+  status?: string;
+  mode?: string;
+  firmware?: string;
+  last_seen?: string;
+  free_heap_bytes?: number;
+}
+
 // Response interface from the NILM backend
 interface ApplianceDetail {
   state: "ON" | "IDLE" | "OFF" | string;
@@ -133,6 +155,7 @@ interface BackendStatus {
   timestamp?: string;
   simulation_mode?: boolean;
   mode?: string;
+  edge_node?: EdgeNodeInfo;
   breaker_status?: "ARMED" | "TRIPPED" | string;
   peak_demand_kw?: number;
   tod_tariff?: ToDTariff;
@@ -147,6 +170,7 @@ interface BackendStatus {
   predictive_maintenance?: PredictiveMaintenanceData;
   edge_benchmark?: EdgeBenchmarkData;
   recent_events?: RecentEvent[];
+  recent_audits?: AuditRecord[];
   appliance_states?: Record<string, string>;
   appliances?: Record<string, ApplianceDetail>;
 }
@@ -245,9 +269,19 @@ function getApplianceMeta(name: string) {
 export default function Dashboard() {
   const [mounted, setMounted] = useState(false);
   const [viewMode, setViewMode] = useState<"office" | "engineering">("office");
+  const [connectionState, setConnectionState] = useState<ConnectionState>("connecting");
   const [isConnected, setIsConnected] = useState<boolean | null>(null);
   const [statusMode, setStatusMode] = useState<string>("Connecting...");
   const [lastUpdated, setLastUpdated] = useState<string>("");
+  const [wakingElapsed, setWakingElapsed] = useState<number>(0);
+  const [edgeNode, setEdgeNode] = useState<EdgeNodeInfo>({ status: "ONLINE", mode: "WOKWI_SIMULATION" });
+  const [recentAudits, setRecentAudits] = useState<AuditRecord[]>([]);
+
+  // Remote Load Shedding Confirmation Modal
+  const [showTripModal, setShowTripModal] = useState<boolean>(false);
+  const [tripAction, setTripAction] = useState<"TRIP" | "RESET">("TRIP");
+  const [operatorName, setOperatorName] = useState<string>("Pushkal (Lead)");
+  const [authToken, setAuthToken] = useState<string>("nilm_sec_token_2026");
 
   // Live Metrics
   const [voltage, setVoltage] = useState(230.0);
@@ -348,16 +382,18 @@ export default function Dashboard() {
   };
 
   // --------------------------------------------------------------------------
-  // Polling Hook: Smooth live stream with pause detection
+  // Polling Hook: 6-State Connection FSM with Render Cold-Start Tracker
   // --------------------------------------------------------------------------
   useEffect(() => {
     let isMounted = true;
     let lastSeenTimestamp = "";
+    let failureStreak = 0;
+    let wakeSecondsCounter = 0;
 
     const fetchStatus = async () => {
       try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 3500);
+        const timeoutId = setTimeout(() => controller.abort(), 4000);
 
         const res = await fetch(API_URL, {
           signal: controller.signal,
@@ -374,19 +410,34 @@ export default function Dashboard() {
         const data: BackendStatus = await res.json();
         if (!isMounted) return;
 
+        failureStreak = 0;
+        wakeSecondsCounter = 0;
+        setWakingElapsed(0);
         setIsConnected(true);
 
         const rawTimestamp = data.timestamp || "";
-        const isFresh = rawTimestamp
-          ? Date.now() - new Date(rawTimestamp).getTime() < 55000
-          : false;
+        const nowMs = Date.now();
+        const packetAgeMs = rawTimestamp ? nowMs - new Date(rawTimestamp).getTime() : 999999;
 
-        if (isFresh) {
-          setStatusMode(data.mode ? `Live (${data.mode})` : "Node Streaming");
-        } else if (rawTimestamp) {
-          setStatusMode("ESP32 Paused / Idle");
+        if (data.edge_node?.status === "OFFLINE") {
+          setConnectionState("offline");
+          setStatusMode("Edge Node Offline (Standby)");
+        } else if (packetAgeMs < 20000) {
+          setConnectionState("live");
+          setStatusMode(data.mode ? `Live (${data.mode})` : "Live 1Hz Telemetry");
+        } else if (packetAgeMs < 60000) {
+          setConnectionState("stale");
+          setStatusMode("Stale Telemetry (>20s)");
         } else {
-          setStatusMode("Waiting for ESP32...");
+          setConnectionState("offline");
+          setStatusMode("Edge Node Quiescent");
+        }
+
+        if (data.edge_node) {
+          setEdgeNode(data.edge_node);
+        }
+        if (data.recent_audits) {
+          setRecentAudits(data.recent_audits);
         }
 
         const timeStr = rawTimestamp
@@ -468,13 +519,26 @@ export default function Dashboard() {
         }
       } catch {
         if (!isMounted) return;
+        failureStreak++;
         setIsConnected(false);
-        setStatusMode("Connecting to Cloud...");
+
+        if (failureStreak >= 2 && failureStreak < 60) {
+          setConnectionState("waking_server");
+          wakeSecondsCounter += 1;
+          setWakingElapsed(wakeSecondsCounter);
+          setStatusMode(`Server Waking (${wakeSecondsCounter}s)`);
+        } else if (failureStreak >= 60) {
+          setConnectionState("error");
+          setStatusMode("Backend Unreachable");
+        } else {
+          setConnectionState("connecting");
+          setStatusMode("Connecting to Cloud...");
+        }
       }
     };
 
     fetchStatus();
-    const intervalId = setInterval(fetchStatus, 350);
+    const intervalId = setInterval(fetchStatus, 1000);
 
     return () => {
       isMounted = false;
@@ -482,20 +546,34 @@ export default function Dashboard() {
     };
   }, [bufferSeconds, alarmMuted]);
 
-  // Two-Way Remote IoT Breaker Control (Cloud -> MQTT -> ESP32)
-  const handleToggleBreaker = async () => {
-    const targetCommand = breakerStatus === "TRIPPED" ? "RESET" : "TRIP";
+  // Two-Way Remote IoT Breaker Control with Confirmation Modal
+  const openBreakerModal = (action?: "TRIP" | "RESET") => {
+    const act = action || (breakerStatus === "TRIPPED" ? "RESET" : "TRIP");
+    setTripAction(act);
+    setShowTripModal(true);
+  };
+
+  const handleConfirmTrip = async () => {
     try {
       setIsControlling(true);
       const res = await fetch(CONTROL_API_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ command: targetCommand }),
+        body: JSON.stringify({
+          command: tripAction,
+          auth_token: authToken,
+          operator: operatorName,
+          command_id: `cmd_${Date.now()}`
+        }),
       });
       if (res.ok) {
         const result = await res.json();
-        setBreakerStatus(result.breaker_status || (targetCommand === "TRIP" ? "TRIPPED" : "ARMED"));
-        playAlertTone(targetCommand === "TRIP" ? 440 : 980, 200);
+        setBreakerStatus(result.breaker_status || (tripAction === "TRIP" ? "TRIPPED" : "ARMED"));
+        playAlertTone(tripAction === "TRIP" ? 440 : 980, 200);
+        setShowTripModal(false);
+      } else {
+        const err = await res.json();
+        alert(`Command Rejected: ${err.detail || "Authentication Failed"}`);
       }
     } catch (err) {
       console.error("Failed to send remote control command:", err);
@@ -675,17 +753,23 @@ export default function Dashboard() {
               </button>
             </div>
 
-            {/* Connection Status Badge */}
+            {/* Connection Status Badge (6-State FSM) */}
             <div
               className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium ring-1 transition-all ${
-                isConnected === true
+                connectionState === "live"
                   ? "bg-emerald-500/10 text-emerald-400 ring-emerald-500/30"
-                  : isConnected === false
-                  ? "bg-rose-500/10 text-rose-400 ring-rose-500/30"
-                  : "bg-slate-800 text-slate-400 ring-slate-700"
+                  : connectionState === "waking_server"
+                  ? "bg-amber-500/15 text-amber-300 ring-amber-500/40 animate-pulse"
+                  : connectionState === "stale"
+                  ? "bg-amber-500/10 text-amber-400 ring-amber-500/30"
+                  : connectionState === "offline"
+                  ? "bg-slate-800 text-slate-400 ring-slate-700"
+                  : connectionState === "error"
+                  ? "bg-rose-500/15 text-rose-400 ring-rose-500/40"
+                  : "bg-blue-500/10 text-blue-400 ring-blue-500/30"
               }`}
             >
-              {isConnected === true ? (
+              {connectionState === "live" ? (
                 <>
                   <span className="relative flex h-2 w-2">
                     <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span>
@@ -694,15 +778,29 @@ export default function Dashboard() {
                   <Wifi className="h-3.5 w-3.5" />
                   <span>{statusMode}</span>
                 </>
-              ) : isConnected === false ? (
+              ) : connectionState === "waking_server" ? (
+                <>
+                  <RefreshCw className="h-3.5 w-3.5 animate-spin text-amber-400" />
+                  <span>Waking ({wakingElapsed}s)</span>
+                </>
+              ) : connectionState === "stale" ? (
+                <>
+                  <Clock className="h-3.5 w-3.5 text-amber-400" />
+                  <span>Stale Telemetry</span>
+                </>
+              ) : connectionState === "offline" ? (
                 <>
                   <WifiOff className="h-3.5 w-3.5" />
-                  <span className="hidden sm:inline">{statusMode}</span>
-                  <span className="sm:hidden">Offline</span>
+                  <span>Node Standby</span>
+                </>
+              ) : connectionState === "error" ? (
+                <>
+                  <AlertTriangle className="h-3.5 w-3.5 text-rose-400" />
+                  <span>Cloud Offline</span>
                 </>
               ) : (
                 <>
-                  <Server className="h-3.5 w-3.5 animate-pulse text-slate-400" />
+                  <Server className="h-3.5 w-3.5 animate-pulse text-blue-400" />
                   <span>Connecting...</span>
                 </>
               )}
@@ -713,20 +811,42 @@ export default function Dashboard() {
 
       {/* Main Dashboard Container */}
       <main className="mx-auto max-w-7xl space-y-6 px-4 py-6 sm:px-6 lg:px-8">
+        {/* Render Free-Tier Cold Start Banner with Countdown & Progress */}
+        {connectionState === "waking_server" && (
+          <div className="flex flex-col gap-2.5 rounded-xl border border-blue-500/30 bg-blue-950/40 p-4 text-xs text-blue-200 print:hidden shadow-lg">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2.5 font-bold">
+                <RefreshCw className="h-4 w-4 animate-spin text-blue-400" />
+                <span>Cloud Server Waking Up (Render Cold Start)</span>
+              </div>
+              <span className="font-mono text-xs text-blue-300">Elapsed: {wakingElapsed}s / ~50s</span>
+            </div>
+            <p className="text-slate-300 text-[11px]">
+              Render automatically spins down idle free-tier web services. The backend is restoring SQLite state and launching the MQTT subscriber thread. Live telemetry stream will resume automatically.
+            </p>
+            <div className="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
+              <div
+                className="bg-blue-500 h-1.5 rounded-full transition-all duration-1000 ease-linear"
+                style={{ width: `${Math.min(100, Math.max(10, (wakingElapsed / 45) * 100))}%` }}
+              />
+            </div>
+          </div>
+        )}
+
         {/* Offline / Tunnel Waiting Banner */}
-        {isConnected === false && (
-          <div className="flex flex-col gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3.5 text-xs text-amber-300 sm:flex-row sm:items-center sm:justify-between print:hidden">
+        {connectionState === "error" && (
+          <div className="flex flex-col gap-2 rounded-xl border border-rose-500/30 bg-rose-950/30 p-3.5 text-xs text-rose-300 sm:flex-row sm:items-center sm:justify-between print:hidden">
             <div className="flex items-center gap-2.5">
-              <Radio className="h-4 w-4 shrink-0 animate-pulse text-amber-400" />
+              <Radio className="h-4 w-4 shrink-0 animate-pulse text-rose-400" />
               <span>
-                <strong>Cloud Backend Reconnecting:</strong> Querying{" "}
-                <code className="rounded bg-black/40 px-1.5 py-0.5 font-mono text-amber-200">
+                <strong>Backend Connection Error:</strong> Unable to reach{" "}
+                <code className="rounded bg-black/40 px-1.5 py-0.5 font-mono text-rose-200">
                   {API_URL}
                 </code>
-                . Connecting to live edge broker...
+                . Retrying connection...
               </span>
             </div>
-            <span className="font-mono text-[11px] text-amber-400/80">Retrying polling loop...</span>
+            <span className="font-mono text-[11px] text-rose-400/80">Retrying...</span>
           </div>
         )}
 
@@ -743,7 +863,7 @@ export default function Dashboard() {
               </div>
             </div>
             <button
-              onClick={handleToggleBreaker}
+              onClick={() => openBreakerModal("RESET")}
               disabled={isControlling}
               className="flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 font-bold text-white shadow-md hover:bg-emerald-500 disabled:opacity-50 shrink-0"
             >
@@ -838,7 +958,7 @@ export default function Dashboard() {
                       {breakerStatus === "TRIPPED"
                         ? "The onboard contactor was remotely opened. Zero current is flowing through the line."
                         : totalCurrent < 0.20
-                        ? "Zero electrical waste detected. The facility is in baseline standby mode drawing minimal power."
+                        ? "Baseline quiescent state. Aggregate line current is within standby limit (< 0.18 A)."
                         : appliances["Electric Iron"]?.state === "ON"
                         ? `The office is currently drawing ${totalPower.toFixed(0)} Watts of heating power (~₹${((totalPower / 1000) * (todTariff.rate_inr ?? 7.5)).toFixed(2)}/hour at the current ${todTariff.slot} tariff). Please ensure the iron is turned off when finished.`
                         : `Current draw is ${totalPower.toFixed(0)} Watts with an operating run cost of ~₹${((totalPower / 1000) * (todTariff.rate_inr ?? 7.5)).toFixed(2)} per hour.`}
@@ -860,7 +980,7 @@ export default function Dashboard() {
 
                   {/* Remote Load Shed Control Button */}
                   <button
-                    onClick={handleToggleBreaker}
+                    onClick={() => openBreakerModal()}
                     disabled={isControlling}
                     className={`mt-3 flex items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-all ${
                       breakerStatus === "TRIPPED"
@@ -970,7 +1090,7 @@ export default function Dashboard() {
                 <p className="mt-1 text-xs text-slate-500 truncate">
                   {maintenance.bearing_fault
                     ? "Abnormal vibration detected on fan motor."
-                    : "Zero electrical faults or mechanical issues detected."}
+                    : "Kinetic vibration within nominal baseline threshold (|a| <= 1.10 g)."}
                 </p>
                 <div className="mt-4 flex items-center gap-1.5 border-t border-slate-800 pt-3 text-xs">
                   <span
@@ -1238,7 +1358,7 @@ export default function Dashboard() {
                 </div>
                 <p className="mt-1 text-xs text-slate-500">Full-duplex MQTT control</p>
                 <button
-                  onClick={handleToggleBreaker}
+                  onClick={() => openBreakerModal()}
                   disabled={isControlling}
                   className={`mt-3 w-full rounded-lg py-1.5 text-xs font-bold transition-all shadow-sm ${
                     breakerStatus === "TRIPPED"
@@ -1946,6 +2066,129 @@ export default function Dashboard() {
                 </div>
               )}
             </section>
+          </div>
+        )}
+
+        {/* Remote Load Shedding Audit History Log (SQLite Persisted) */}
+        {recentAudits.length > 0 && (
+          <section className="rounded-xl border border-slate-800 bg-slate-900/60 p-5 shadow-sm print:hidden">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">
+              <div className="flex items-center gap-2">
+                <ShieldCheck className="h-4 w-4 text-blue-400" />
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-300">
+                  Remote Breaker Control & Load-Shedding Audit Log (SQLite)
+                </h3>
+              </div>
+              <span className="text-[11px] text-slate-500 font-mono">Immutable Edge Contactor History</span>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs font-mono">
+                <thead>
+                  <tr className="border-b border-slate-800 text-slate-500 text-[11px]">
+                    <th className="py-2 px-3">Timestamp (UTC)</th>
+                    <th className="py-2 px-3">Command ID</th>
+                    <th className="py-2 px-3">Action</th>
+                    <th className="py-2 px-3">Operator</th>
+                    <th className="py-2 px-3">Contactor State</th>
+                    <th className="py-2 px-3">Latency</th>
+                    <th className="py-2 px-3">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800/60">
+                  {recentAudits.map((a) => (
+                    <tr key={`audit-${a.id}`} className="hover:bg-slate-850/50">
+                      <td className="py-2 px-3 text-slate-400">{new Date(a.timestamp).toLocaleTimeString()}</td>
+                      <td className="py-2 px-3 text-blue-400">{a.command_id}</td>
+                      <td className="py-2 px-3">
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${a.action === "TRIP" ? "bg-rose-500/20 text-rose-300 ring-1 ring-rose-500/30" : "bg-emerald-500/20 text-emerald-300 ring-1 ring-emerald-500/30"}`}>
+                          {a.action}
+                        </span>
+                      </td>
+                      <td className="py-2 px-3 text-slate-300 font-sans">{a.operator}</td>
+                      <td className="py-2 px-3 text-slate-300">{a.breaker_status}</td>
+                      <td className="py-2 px-3 text-slate-400">{a.execution_time_ms} ms</td>
+                      <td className="py-2 px-3 text-emerald-400 font-bold">{a.status}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        )}
+
+        {/* Remote Load Shedding Confirmation Modal Dialog */}
+        {showTripModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+            <div className="w-full max-w-lg rounded-2xl border border-slate-700 bg-slate-900 p-6 shadow-2xl animate-in fade-in duration-200">
+              <div className="flex items-center gap-3">
+                <div className={`p-2.5 rounded-xl ${tripAction === "TRIP" ? "bg-rose-500/20 text-rose-400 ring-1 ring-rose-500/30" : "bg-emerald-500/20 text-emerald-400 ring-1 ring-emerald-500/30"}`}>
+                  <AlertOctagon className="h-6 w-6" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-white">
+                    {tripAction === "TRIP" ? "Confirm Emergency Load Shedding" : "Confirm Mains Power Restoration"}
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    {tripAction === "TRIP" ? "Remote Contactor Trip Sequence" : "Breaker Re-Arm Sequence"}
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-4 rounded-xl border border-slate-800 bg-slate-950/70 p-4 text-xs text-slate-300 space-y-2">
+                <p>
+                  {tripAction === "TRIP"
+                    ? "WARNING: Triggering this command will immediately disengage the mains relay on the ESP32 edge node (GPIO 2). Power to all branch circuits will be disconnected."
+                    : "Re-arming the breaker will re-engage the mains contactor, restoring line voltage to all branch circuits."}
+                </p>
+                <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-800/80 font-mono text-[11px]">
+                  <div><span className="text-slate-500">Target:</span> RELAY_MAIN (GPIO 2)</div>
+                  <div><span className="text-slate-500">Topic:</span> nilm/pushkal/control</div>
+                  <div><span className="text-slate-500">Action:</span> <strong className={tripAction === "TRIP" ? "text-rose-400" : "text-emerald-400"}>{tripAction}</strong></div>
+                  <div><span className="text-slate-500">Node Mode:</span> {edgeNode.mode || "WOKWI_SIMULATION"}</div>
+                </div>
+              </div>
+
+              <div className="mt-4 space-y-3">
+                <div>
+                  <label className="block text-xs font-medium text-slate-400 mb-1">Operator Identity</label>
+                  <input
+                    type="text"
+                    value={operatorName}
+                    onChange={(e) => setOperatorName(e.target.value)}
+                    className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-white focus:border-blue-500 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-400 mb-1">Security Authentication Token</label>
+                  <input
+                    type="password"
+                    value={authToken}
+                    onChange={(e) => setAuthToken(e.target.value)}
+                    className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs font-mono text-white focus:border-blue-500 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="mt-6 flex items-center justify-end gap-3">
+                <button
+                  onClick={() => setShowTripModal(false)}
+                  disabled={isControlling}
+                  className="rounded-lg border border-slate-700 px-4 py-2 text-xs font-semibold text-slate-300 hover:bg-slate-800 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleConfirmTrip}
+                  disabled={isControlling}
+                  className={`flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-bold text-white shadow-lg transition-all ${
+                    tripAction === "TRIP" ? "bg-rose-600 hover:bg-rose-500" : "bg-emerald-600 hover:bg-emerald-500"
+                  } disabled:opacity-50`}
+                >
+                  {isControlling && <RefreshCw className="h-3.5 w-3.5 animate-spin" />}
+                  {tripAction === "TRIP" ? "Execute Load Shedding" : "Restore Mains Power"}
+                </button>
+              </div>
+            </div>
           </div>
         )}
 
