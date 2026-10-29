@@ -216,6 +216,11 @@ function getApplianceMeta(name: string) {
       color: "#38bdf8", // Precision Sky Blue for chart differentiation
       type: "Inductive Motor (BLDC)",
       spinOnActive: true,
+      pulseOnActive: false,
+      activeRing: "ring-sky-500/30",
+      activeBorder: "border-sky-500/50",
+      activeShadow: "shadow-[0_0_24px_rgba(56,189,248,0.20)]",
+      activeIconBg: "bg-sky-500/15 text-sky-400 ring-sky-500/30",
     };
   }
   if (lower.includes("iron")) {
@@ -224,6 +229,11 @@ function getApplianceMeta(name: string) {
       color: "#f59e0b", // Industrial Amber (Thermal heating load)
       type: "Resistive Thermal Heating",
       spinOnActive: false,
+      pulseOnActive: true,
+      activeRing: "ring-amber-500/30",
+      activeBorder: "border-amber-500/50",
+      activeShadow: "shadow-[0_0_24px_rgba(245,158,11,0.22)]",
+      activeIconBg: "bg-amber-500/15 text-amber-400 ring-amber-500/30",
     };
   }
   if (lower.includes("charger") || lower.includes("phone")) {
@@ -232,6 +242,11 @@ function getApplianceMeta(name: string) {
       color: "#94a3b8", // Precision Slate for electronic adapter
       type: "GaN SMPS Fast Adapter",
       spinOnActive: false,
+      pulseOnActive: true,
+      activeRing: "ring-slate-400/30",
+      activeBorder: "border-slate-400/50",
+      activeShadow: "shadow-[0_0_20px_rgba(148,163,184,0.18)]",
+      activeIconBg: "bg-slate-500/15 text-slate-300 ring-slate-400/30",
     };
   }
   if (lower.includes("refrigerator") || lower.includes("fridge")) {
@@ -240,6 +255,11 @@ function getApplianceMeta(name: string) {
       color: "#06b6d4", // Cyan
       type: "Compressor Duty Cycle",
       spinOnActive: false,
+      pulseOnActive: false,
+      activeRing: "ring-cyan-500/30",
+      activeBorder: "border-cyan-500/50",
+      activeShadow: "shadow-[0_0_20px_rgba(6,182,212,0.20)]",
+      activeIconBg: "bg-cyan-500/15 text-cyan-400 ring-cyan-500/30",
     };
   }
   if (lower.includes("air conditioner") || lower.includes("ac")) {
@@ -248,6 +268,11 @@ function getApplianceMeta(name: string) {
       color: "#3b82f6", // Cobalt Blue
       type: "Heavy Cooling Compressor",
       spinOnActive: false,
+      pulseOnActive: false,
+      activeRing: "ring-blue-500/30",
+      activeBorder: "border-blue-500/50",
+      activeShadow: "shadow-[0_0_20px_rgba(59,130,246,0.20)]",
+      activeIconBg: "bg-blue-500/15 text-blue-400 ring-blue-500/30",
     };
   }
   if (lower.includes("microwave")) {
@@ -256,6 +281,11 @@ function getApplianceMeta(name: string) {
       color: "#eab308", // Industrial Yellow
       type: "Magnetron Pulse Load",
       spinOnActive: false,
+      pulseOnActive: false,
+      activeRing: "ring-yellow-500/30",
+      activeBorder: "border-yellow-500/50",
+      activeShadow: "shadow-[0_0_20px_rgba(234,179,8,0.20)]",
+      activeIconBg: "bg-yellow-500/15 text-yellow-400 ring-yellow-500/30",
     };
   }
   return {
@@ -263,6 +293,11 @@ function getApplianceMeta(name: string) {
     color: "#64748b", // Neutral Slate
     type: "Disaggregated Load Channel",
     spinOnActive: false,
+    pulseOnActive: false,
+    activeRing: "ring-blue-500/30",
+    activeBorder: "border-blue-500/50",
+    activeShadow: "shadow-[0_0_20px_rgba(59,130,246,0.18)]",
+    activeIconBg: "bg-blue-500/15 text-blue-400 ring-blue-500/30",
   };
 }
 
@@ -273,6 +308,7 @@ export default function Dashboard() {
   const [isConnected, setIsConnected] = useState<boolean | null>(null);
   const [statusMode, setStatusMode] = useState<string>("Connecting...");
   const [lastUpdated, setLastUpdated] = useState<string>("");
+  const [packetFlash, setPacketFlash] = useState<boolean>(false);
   const [wakingElapsed, setWakingElapsed] = useState<number>(0);
   const [edgeNode, setEdgeNode] = useState<EdgeNodeInfo>({ status: "ONLINE", mode: "WOKWI_SIMULATION" });
   const [recentAudits, setRecentAudits] = useState<AuditRecord[]>([]);
@@ -501,6 +537,8 @@ export default function Dashboard() {
         // Only append to the live chart when a fresh packet actually arrives from ESP32
         if (rawTimestamp && rawTimestamp !== lastSeenTimestamp) {
           lastSeenTimestamp = rawTimestamp;
+          setPacketFlash(true);
+          setTimeout(() => setPacketFlash(false), 350);
 
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const newPoint: Record<string, any> = {
@@ -675,7 +713,14 @@ export default function Dashboard() {
             <div>
               {/* System Badges */}
               <div className="flex flex-wrap items-center gap-2">
-                <span className="rounded-md bg-blue-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-blue-400 ring-1 ring-blue-500/20">
+                <span className="flex items-center gap-1.5 rounded-md bg-blue-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-blue-400 ring-1 ring-blue-500/20">
+                  <span
+                    className={`inline-block h-1.5 w-1.5 rounded-full transition-all duration-300 ${
+                      packetFlash
+                        ? "bg-emerald-400 scale-150 shadow-[0_0_8px_#34d399]"
+                        : "bg-blue-400/60"
+                    }`}
+                  />
                   Live 1Hz Telemetry
                 </span>
 
@@ -1087,6 +1132,30 @@ export default function Dashboard() {
                     {maintenance.bearing_fault ? "Inspection Needed" : "Optimal Condition"}
                   </span>
                 </div>
+
+                {/* 10-Segment LED Health Status Bar */}
+                <div className="mt-2.5 flex items-center gap-1" title={`Vibration Health Index: ${maintenance.health_score ?? 100}%`}>
+                  {Array.from({ length: 10 }).map((_, idx) => {
+                    const score = maintenance.health_score ?? 100;
+                    const isLit = score >= (idx + 1) * 10 - 5;
+                    const isAlertZone = idx < 6;
+                    const isWarningZone = idx >= 6 && idx < 8;
+                    return (
+                      <div
+                        key={`office-health-seg-${idx}`}
+                        className={`h-1.5 flex-1 rounded-sm transition-all duration-300 ${
+                          !isLit
+                            ? "bg-slate-800"
+                            : isAlertZone
+                            ? "bg-rose-500 shadow-[0_0_6px_rgba(244,63,94,0.7)]"
+                            : isWarningZone
+                            ? "bg-amber-400 shadow-[0_0_6px_rgba(251,191,36,0.7)]"
+                            : "bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.7)]"
+                        }`}
+                      />
+                    );
+                  })}
+                </div>
                 <p className="mt-1 text-xs text-slate-500 truncate">
                   {maintenance.bearing_fault
                     ? "Abnormal vibration detected on fan motor."
@@ -1156,18 +1225,24 @@ export default function Dashboard() {
                   return (
                     <div
                       key={`office-${name}`}
-                      className={`relative overflow-hidden rounded-xl border p-5 shadow-sm backdrop-blur-md transition-all duration-200 ${
+                      className={`relative overflow-hidden rounded-xl border p-5 shadow-sm backdrop-blur-md transition-all duration-300 ${
                         isActive
-                          ? "border-blue-500/40 bg-slate-900/90 ring-1 ring-blue-500/20"
+                          ? `${meta.activeBorder} ${meta.activeShadow} ${meta.activeRing} bg-slate-900/90`
                           : "border-slate-800 bg-slate-900/40 opacity-75"
                       }`}
                     >
                       <div className="flex items-start justify-between">
                         <div className="flex items-center gap-3">
-                          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-500/10 text-blue-400 ring-1 ring-blue-500/20">
+                          <div
+                            className={`flex h-11 w-11 items-center justify-center rounded-xl transition-colors duration-300 ${
+                              isActive ? meta.activeIconBg : "bg-slate-800/60 text-slate-500 ring-1 ring-slate-700/50"
+                            }`}
+                          >
                             <IconComponent
-                              className={`h-5 w-5 ${isActive && meta.spinOnActive ? "animate-spin" : ""}`}
-                              style={{ animationDuration: "3s" }}
+                              className={`h-5 w-5 ${
+                                isActive && meta.spinOnActive ? "animate-spin" : ""
+                              } ${isActive && meta.pulseOnActive ? "animate-pulse" : ""}`}
+                              style={{ animationDuration: meta.spinOnActive ? "3s" : "1.5s" }}
                             />
                           </div>
                           <div>
@@ -1475,6 +1550,30 @@ export default function Dashboard() {
                   </span>
                   <span className="text-sm font-semibold text-slate-400">%</span>
                 </div>
+
+                {/* 10-Segment LED Vibration Health Bar */}
+                <div className="mt-2.5 flex items-center gap-1" title={`Vibration Health Index: ${maintenance.health_score ?? 100}%`}>
+                  {Array.from({ length: 10 }).map((_, idx) => {
+                    const score = maintenance.health_score ?? 100;
+                    const isLit = score >= (idx + 1) * 10 - 5;
+                    const isAlertZone = idx < 6;
+                    const isWarningZone = idx >= 6 && idx < 8;
+                    return (
+                      <div
+                        key={`eng-health-seg-${idx}`}
+                        className={`h-1.5 flex-1 rounded-sm transition-all duration-300 ${
+                          !isLit
+                            ? "bg-slate-800"
+                            : isAlertZone
+                            ? "bg-rose-500 shadow-[0_0_6px_rgba(244,63,94,0.7)]"
+                            : isWarningZone
+                            ? "bg-amber-400 shadow-[0_0_6px_rgba(251,191,36,0.7)]"
+                            : "bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.7)]"
+                        }`}
+                      />
+                    );
+                  })}
+                </div>
                 <p className="mt-1 text-xs text-slate-500 truncate" title={maintenance.anomaly_status}>
                   {maintenance.anomaly_status ?? "Optimal Operation"}
                 </p>
@@ -1523,20 +1622,24 @@ export default function Dashboard() {
                     return (
                       <div
                         key={name}
-                        className={`relative overflow-hidden rounded-xl border p-5 shadow-sm backdrop-blur-md transition-all duration-200 ${
+                        className={`relative overflow-hidden rounded-xl border p-5 shadow-sm backdrop-blur-md transition-all duration-300 ${
                           isActive
-                            ? "border-blue-500/40 bg-slate-900/90 ring-1 ring-blue-500/20"
+                            ? `${meta.activeBorder} ${meta.activeShadow} ${meta.activeRing} bg-slate-900/90`
                             : "border-slate-800 bg-slate-900/40 opacity-75"
                         }`}
                       >
                         <div className="flex items-start justify-between">
                           <div className="flex items-center gap-3">
-                            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-500/10 text-blue-400 ring-1 ring-blue-500/20">
+                            <div
+                              className={`flex h-11 w-11 items-center justify-center rounded-xl transition-colors duration-300 ${
+                                isActive ? meta.activeIconBg : "bg-slate-800/60 text-slate-500 ring-1 ring-slate-700/50"
+                              }`}
+                            >
                               <IconComponent
                                 className={`h-5 w-5 ${
                                   isActive && meta.spinOnActive ? "animate-spin" : ""
-                                }`}
-                                style={{ animationDuration: "3s" }}
+                                } ${isActive && meta.pulseOnActive ? "animate-pulse" : ""}`}
+                                style={{ animationDuration: meta.spinOnActive ? "3s" : "1.5s" }}
                               />
                             </div>
                             <div>
