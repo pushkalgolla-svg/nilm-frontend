@@ -704,151 +704,227 @@ export default function Dashboard() {
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 antialiased selection:bg-blue-600 selection:text-white">
       {/* Top SCADA Navigation Header */}
-      <header className="sticky top-0 z-30 border-b border-slate-800 bg-slate-950/90 backdrop-blur-md print:hidden">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6 lg:px-8">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600/15 text-blue-400 ring-1 ring-blue-500/30">
-              <Zap className="h-5 w-5" />
+      <header className="sticky top-0 z-30 border-b border-slate-800 bg-slate-950/95 backdrop-blur-md print:hidden">
+        <div className="mx-auto max-w-7xl px-3 py-2 sm:px-6 sm:py-3 lg:px-8">
+          <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+            {/* Top Row / Branding & Title */}
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-xl bg-blue-600/15 text-blue-400 ring-1 ring-blue-500/30 shrink-0">
+                  <Zap className="h-4 w-4 sm:h-5 sm:w-5" />
+                </div>
+                <div>
+                  <h1 className="text-sm font-bold tracking-tight text-white sm:text-base">
+                    <span className="sm:hidden">AIoT NILM SCADA</span>
+                    <span className="hidden sm:inline">Non-Intrusive Load Monitoring (NILM) Telemetry Dashboard</span>
+                  </h1>
+                  {/* Desktop Inline Badges */}
+                  <div className="hidden sm:flex flex-wrap items-center gap-2 mt-1">
+                    <span className="flex items-center gap-1.5 rounded-md bg-blue-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-blue-400 ring-1 ring-blue-500/20">
+                      <span
+                        className={`inline-block h-1.5 w-1.5 rounded-full transition-all duration-300 ${
+                          packetFlash
+                            ? "bg-emerald-400 scale-150 shadow-[0_0_8px_#34d399]"
+                            : "bg-blue-400/60"
+                        }`}
+                      />
+                      Live 1Hz Telemetry
+                    </span>
+                    <span
+                      className={`rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ring-1 ${
+                        todTariff.slot === "PEAK"
+                          ? "bg-amber-500/15 text-amber-300 ring-amber-500/30"
+                          : todTariff.slot === "OFF-PEAK"
+                          ? "bg-emerald-500/15 text-emerald-300 ring-emerald-500/30"
+                          : "bg-slate-800 text-slate-300 ring-slate-700"
+                      }`}
+                      title="Dynamic industrial tariff slab currently in effect"
+                    >
+                      ⚡ {todTariff.slot} TARIFF: ₹{(todTariff.rate_inr ?? 7.50).toFixed(2)}/kWh
+                    </span>
+                    <span
+                      className={`rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ring-1 ${
+                        breakerStatus === "TRIPPED"
+                          ? "bg-rose-500/20 text-rose-300 ring-rose-500/40 animate-pulse"
+                          : "bg-emerald-500/10 text-emerald-400 ring-emerald-500/20"
+                      }`}
+                    >
+                      {breakerStatus === "TRIPPED" ? "BREAKER TRIPPED (LOAD SHED)" : "MAINS ARMED"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Mobile Right Controls: Mute + View Mode Toggle */}
+              <div className="flex md:hidden items-center gap-1.5">
+                <button
+                  onClick={() => setAlarmMuted(!alarmMuted)}
+                  className={`flex items-center justify-center rounded-lg border p-1.5 text-xs transition-colors ${
+                    alarmMuted
+                      ? "border-slate-800 bg-slate-900 text-slate-500"
+                      : "border-blue-500/30 bg-blue-500/10 text-blue-400"
+                  }`}
+                  title={alarmMuted ? "Audio muted" : "Audio active"}
+                >
+                  {alarmMuted ? <VolumeX className="h-3.5 w-3.5" /> : <Volume2 className="h-3.5 w-3.5" />}
+                </button>
+                <div className="flex items-center rounded-lg border border-slate-800 bg-slate-900/90 p-0.5 text-xs">
+                  <button
+                    onClick={() => setViewMode("office")}
+                    className={`rounded-md px-2.5 py-1 font-semibold transition-all ${
+                      viewMode === "office" ? "bg-blue-600 text-white" : "text-slate-400"
+                    }`}
+                  >
+                    Office
+                  </button>
+                  <button
+                    onClick={() => setViewMode("engineering")}
+                    className={`rounded-md px-2.5 py-1 font-semibold transition-all ${
+                      viewMode === "engineering" ? "bg-blue-600 text-white" : "text-slate-400"
+                    }`}
+                  >
+                    Eng
+                  </button>
+                </div>
+              </div>
             </div>
-            <div>
-              {/* System Badges */}
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="flex items-center gap-1.5 rounded-md bg-blue-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-blue-400 ring-1 ring-blue-500/20">
+
+            {/* Mobile Pill Sub-Bar (Visible only on mobile screens) */}
+            <div className="flex sm:hidden items-center justify-between gap-1.5 overflow-x-auto text-[10px] pt-1 border-t border-slate-800/60">
+              <div className="flex items-center gap-1.5 shrink-0">
+                <span className="flex items-center gap-1 rounded bg-blue-500/10 px-1.5 py-0.5 font-bold uppercase text-blue-400 ring-1 ring-blue-500/20">
                   <span
-                    className={`inline-block h-1.5 w-1.5 rounded-full transition-all duration-300 ${
-                      packetFlash
-                        ? "bg-emerald-400 scale-150 shadow-[0_0_8px_#34d399]"
-                        : "bg-blue-400/60"
+                    className={`inline-block h-1.5 w-1.5 rounded-full ${
+                      packetFlash ? "bg-emerald-400 scale-125 shadow-[0_0_8px_#34d399]" : "bg-blue-400/60"
                     }`}
                   />
-                  Live 1Hz Telemetry
+                  1Hz
                 </span>
-
-                {/* ToD Dynamic Tariff Pill */}
                 <span
-                  className={`rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ring-1 ${
+                  className={`rounded px-1.5 py-0.5 font-bold uppercase ring-1 ${
                     todTariff.slot === "PEAK"
                       ? "bg-amber-500/15 text-amber-300 ring-amber-500/30"
-                      : todTariff.slot === "OFF-PEAK"
-                      ? "bg-emerald-500/15 text-emerald-300 ring-emerald-500/30"
                       : "bg-slate-800 text-slate-300 ring-slate-700"
                   }`}
-                  title="Dynamic industrial tariff slab currently in effect"
                 >
-                  ⚡ {todTariff.slot} TARIFF: ₹{(todTariff.rate_inr ?? 7.50).toFixed(2)}/kWh
+                  ₹{(todTariff.rate_inr ?? 7.5).toFixed(2)}/u
                 </span>
-
-                {/* Remote Breaker State Badge */}
                 <span
-                  className={`rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ring-1 ${
+                  className={`rounded px-1.5 py-0.5 font-bold uppercase ring-1 ${
                     breakerStatus === "TRIPPED"
-                      ? "bg-rose-500/20 text-rose-300 ring-rose-500/40 animate-pulse"
+                      ? "bg-rose-500/20 text-rose-300 ring-rose-500/40"
                       : "bg-emerald-500/10 text-emerald-400 ring-emerald-500/20"
                   }`}
                 >
-                  {breakerStatus === "TRIPPED" ? "BREAKER TRIPPED (LOAD SHED)" : "MAINS ARMED"}
+                  {breakerStatus === "TRIPPED" ? "TRIPPED" : "ARMED"}
                 </span>
               </div>
-              <h1 className="mt-0.5 text-sm font-bold tracking-tight text-white sm:text-base">
-                Non-Intrusive Load Monitoring (NILM) Telemetry Dashboard
-              </h1>
-            </div>
-          </div>
-
-          {/* Mode Switcher + Sound Mute + Connection Status Badge */}
-          <div className="flex flex-wrap items-center gap-2">
-            {/* Audio Alarm Mute Toggle */}
-            <button
-              onClick={() => setAlarmMuted(!alarmMuted)}
-              className={`flex items-center gap-1.5 rounded-lg border p-1.5 text-xs transition-colors ${
-                alarmMuted
-                  ? "border-slate-800 bg-slate-900 text-slate-500 hover:text-slate-300"
-                  : "border-blue-500/30 bg-blue-500/10 text-blue-400"
-              }`}
-              title={alarmMuted ? "Audio alarms muted" : "Audio alarms active (Web Audio API)"}
-            >
-              {alarmMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
-            </button>
-
-            {/* View Mode Toggle */}
-            <div className="flex items-center rounded-xl border border-slate-800 bg-slate-900/90 p-1 text-xs">
-              <button
-                onClick={() => setViewMode("office")}
-                className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 font-medium transition-all ${
-                  viewMode === "office"
-                    ? "bg-blue-600 text-white shadow-sm font-semibold"
-                    : "text-slate-400 hover:text-white"
-                }`}
-                title="Simplified view for office staff & facility managers"
-              >
-                <Building2 className="h-3.5 w-3.5" />
-                <span>Office View</span>
-              </button>
-              <button
-                onClick={() => setViewMode("engineering")}
-                className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 font-medium transition-all ${
-                  viewMode === "engineering"
-                    ? "bg-blue-600 text-white shadow-sm font-semibold"
-                    : "text-slate-400 hover:text-white"
-                }`}
-                title="Deep diagnostic view with waveforms & TinyML benchmark"
-              >
-                <Cpu className="h-3.5 w-3.5" />
-                <span>Engineering View</span>
-              </button>
-            </div>
-
-            {/* Connection Status Badge (6-State FSM) */}
-            <div
-              className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium ring-1 transition-all ${
-                connectionState === "live"
-                  ? "bg-emerald-500/10 text-emerald-400 ring-emerald-500/30"
-                  : connectionState === "waking_server"
-                  ? "bg-amber-500/15 text-amber-300 ring-amber-500/40 animate-pulse"
-                  : connectionState === "stale"
-                  ? "bg-amber-500/10 text-amber-400 ring-amber-500/30"
-                  : connectionState === "offline"
-                  ? "bg-slate-800 text-slate-400 ring-slate-700"
-                  : connectionState === "error"
-                  ? "bg-rose-500/15 text-rose-400 ring-rose-500/40"
-                  : "bg-blue-500/10 text-blue-400 ring-blue-500/30"
-              }`}
-            >
-              {connectionState === "live" ? (
-                <>
-                  <span className="relative flex h-2 w-2">
+              <div className="shrink-0 font-medium">
+                <span className="text-emerald-400 flex items-center gap-1 text-[10px]">
+                  <span className="relative flex h-1.5 w-1.5">
                     <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span>
-                    <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500"></span>
+                    <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
                   </span>
-                  <Wifi className="h-3.5 w-3.5" />
-                  <span>{statusMode}</span>
-                </>
-              ) : connectionState === "waking_server" ? (
-                <>
-                  <RefreshCw className="h-3.5 w-3.5 animate-spin text-amber-400" />
-                  <span>Waking ({wakingElapsed}s)</span>
-                </>
-              ) : connectionState === "stale" ? (
-                <>
-                  <Clock className="h-3.5 w-3.5 text-amber-400" />
-                  <span>Stale Telemetry</span>
-                </>
-              ) : connectionState === "offline" ? (
-                <>
-                  <WifiOff className="h-3.5 w-3.5" />
-                  <span>Node Standby</span>
-                </>
-              ) : connectionState === "error" ? (
-                <>
-                  <AlertTriangle className="h-3.5 w-3.5 text-rose-400" />
-                  <span>Cloud Offline</span>
-                </>
-              ) : (
-                <>
-                  <Server className="h-3.5 w-3.5 animate-pulse text-blue-400" />
-                  <span>Connecting...</span>
-                </>
-              )}
+                  {connectionState === "live" ? "Live" : statusMode}
+                </span>
+              </div>
+            </div>
+
+            {/* Desktop Mode Switcher + Sound Mute + Connection Status Badge */}
+            <div className="hidden md:flex items-center gap-2">
+              {/* Audio Alarm Mute Toggle */}
+              <button
+                onClick={() => setAlarmMuted(!alarmMuted)}
+                className={`flex items-center gap-1.5 rounded-lg border p-1.5 text-xs transition-colors ${
+                  alarmMuted
+                    ? "border-slate-800 bg-slate-900 text-slate-500 hover:text-slate-300"
+                    : "border-blue-500/30 bg-blue-500/10 text-blue-400"
+                }`}
+                title={alarmMuted ? "Audio alarms muted" : "Audio alarms active (Web Audio API)"}
+              >
+                {alarmMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+              </button>
+
+              {/* View Mode Toggle */}
+              <div className="flex items-center rounded-xl border border-slate-800 bg-slate-900/90 p-1 text-xs">
+                <button
+                  onClick={() => setViewMode("office")}
+                  className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 font-medium transition-all ${
+                    viewMode === "office"
+                      ? "bg-blue-600 text-white shadow-sm font-semibold"
+                      : "text-slate-400 hover:text-white"
+                  }`}
+                  title="Simplified view for office staff & facility managers"
+                >
+                  <Building2 className="h-3.5 w-3.5" />
+                  <span>Office View</span>
+                </button>
+                <button
+                  onClick={() => setViewMode("engineering")}
+                  className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 font-medium transition-all ${
+                    viewMode === "engineering"
+                      ? "bg-blue-600 text-white shadow-sm font-semibold"
+                      : "text-slate-400 hover:text-white"
+                  }`}
+                  title="Deep diagnostic view with waveforms & TinyML benchmark"
+                >
+                  <Cpu className="h-3.5 w-3.5" />
+                  <span>Engineering View</span>
+                </button>
+              </div>
+
+              {/* Connection Status Badge (6-State FSM) */}
+              <div
+                className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium ring-1 transition-all ${
+                  connectionState === "live"
+                    ? "bg-emerald-500/10 text-emerald-400 ring-emerald-500/30"
+                    : connectionState === "waking_server"
+                    ? "bg-amber-500/15 text-amber-300 ring-amber-500/40 animate-pulse"
+                    : connectionState === "stale"
+                    ? "bg-amber-500/10 text-amber-400 ring-amber-500/30"
+                    : connectionState === "offline"
+                    ? "bg-slate-800 text-slate-400 ring-slate-700"
+                    : connectionState === "error"
+                    ? "bg-rose-500/15 text-rose-400 ring-rose-500/40"
+                    : "bg-blue-500/10 text-blue-400 ring-blue-500/30"
+                }`}
+              >
+                {connectionState === "live" ? (
+                  <>
+                    <span className="relative flex h-2 w-2">
+                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span>
+                      <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500"></span>
+                    </span>
+                    <Wifi className="h-3.5 w-3.5" />
+                    <span>{statusMode}</span>
+                  </>
+                ) : connectionState === "waking_server" ? (
+                  <>
+                    <RefreshCw className="h-3.5 w-3.5 animate-spin text-amber-400" />
+                    <span>Waking ({wakingElapsed}s)</span>
+                  </>
+                ) : connectionState === "stale" ? (
+                  <>
+                    <Clock className="h-3.5 w-3.5 text-amber-400" />
+                    <span>Stale Telemetry</span>
+                  </>
+                ) : connectionState === "offline" ? (
+                  <>
+                    <WifiOff className="h-3.5 w-3.5" />
+                    <span>Node Standby</span>
+                  </>
+                ) : connectionState === "error" ? (
+                  <>
+                    <AlertTriangle className="h-3.5 w-3.5 text-rose-400" />
+                    <span>Cloud Offline</span>
+                  </>
+                ) : (
+                  <>
+                    <Server className="h-3.5 w-3.5 animate-pulse text-blue-400" />
+                    <span>Connecting...</span>
+                  </>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -924,11 +1000,11 @@ export default function Dashboard() {
           /* ================================================================= */
           <div className="space-y-6">
             {/* 1. Large Glanceable Status Hero Banner */}
-            <section className="relative overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/60 p-6 shadow-sm backdrop-blur-md">
+            <section className="relative overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/60 p-4 sm:p-6 shadow-sm backdrop-blur-md">
               <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex items-start gap-4">
+                <div className="flex items-start gap-3 sm:gap-4">
                   <div
-                    className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl ring-1 ${
+                    className={`flex h-10 w-10 sm:h-12 sm:w-12 shrink-0 items-center justify-center rounded-xl ring-1 ${
                       breakerStatus === "TRIPPED"
                         ? "bg-rose-500/15 text-rose-400 ring-rose-500/30"
                         : totalCurrent < 0.20
@@ -939,13 +1015,13 @@ export default function Dashboard() {
                     }`}
                   >
                     {breakerStatus === "TRIPPED" ? (
-                      <AlertOctagon className="h-6 w-6" />
+                      <AlertOctagon className="h-5 w-5 sm:h-6 sm:w-6" />
                     ) : totalCurrent < 0.20 ? (
-                      <Power className="h-6 w-6" />
+                      <Power className="h-5 w-5 sm:h-6 sm:w-6" />
                     ) : appliances["Electric Iron"]?.state === "ON" ? (
-                      <Flame className="h-6 w-6" />
+                      <Flame className="h-5 w-5 sm:h-6 sm:w-6" />
                     ) : (
-                      <Zap className="h-6 w-6" />
+                      <Zap className="h-5 w-5 sm:h-6 sm:w-6" />
                     )}
                   </div>
                   <div>
@@ -985,7 +1061,7 @@ export default function Dashboard() {
                       <span className="text-xs text-slate-500">Updated: {lastUpdated || "--:--:--"}</span>
                     </div>
 
-                    <h2 className="mt-2 text-xl font-bold tracking-tight text-white sm:text-2xl">
+                    <h2 className="mt-2 text-base sm:text-2xl font-bold tracking-tight text-white">
                       {breakerStatus === "TRIPPED"
                         ? "Mains Circuit Cut Off via Remote Load Shedding"
                         : totalCurrent < 0.20
@@ -1041,9 +1117,9 @@ export default function Dashboard() {
             </section>
 
             {/* 2. Four Clean Office KPI Cards */}
-            <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <section className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
               {/* Office Electricity Bill Card */}
-              <div className="relative overflow-hidden rounded-xl border border-slate-800 bg-slate-900/60 p-5 shadow-sm">
+              <div className="relative overflow-hidden rounded-xl border border-slate-800 bg-slate-900/60 p-3.5 sm:p-5 shadow-sm">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
                     Office Electricity Bill
@@ -1053,7 +1129,7 @@ export default function Dashboard() {
                   </div>
                 </div>
                 <div className="mt-3 flex items-baseline gap-2">
-                  <span className="font-mono text-3xl font-extrabold tracking-tight text-white">
+                  <span className="font-mono text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
                     ₹{(analytics.cost_inr ?? 0).toFixed(2)}
                   </span>
                   <span className="text-xs font-medium text-slate-400">Session Total</span>
@@ -1070,7 +1146,7 @@ export default function Dashboard() {
               </div>
 
               {/* Time-of-Day Tariff & Savings Optimizer Card */}
-              <div className="relative overflow-hidden rounded-xl border border-slate-800 bg-slate-900/60 p-5 shadow-sm">
+              <div className="relative overflow-hidden rounded-xl border border-slate-800 bg-slate-900/60 p-3.5 sm:p-5 shadow-sm">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
                     ToD Tariff Optimizer
@@ -1101,7 +1177,7 @@ export default function Dashboard() {
               </div>
 
               {/* Equipment Health & Safety Alert */}
-              <div className="relative overflow-hidden rounded-xl border border-slate-800 bg-slate-900/60 p-5 shadow-sm">
+              <div className="relative overflow-hidden rounded-xl border border-slate-800 bg-slate-900/60 p-3.5 sm:p-5 shadow-sm">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
                     Equipment Safety & Health
@@ -1121,7 +1197,7 @@ export default function Dashboard() {
                   </div>
                 </div>
                 <div className="mt-3 flex items-baseline gap-2">
-                  <span className="font-mono text-3xl font-extrabold tracking-tight text-white">
+                  <span className="font-mono text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
                     {maintenance.health_score ?? 100}%
                   </span>
                   <span
@@ -1176,7 +1252,7 @@ export default function Dashboard() {
               </div>
 
               {/* Eco & Carbon Impact */}
-              <div className="relative overflow-hidden rounded-xl border border-slate-800 bg-slate-900/60 p-5 shadow-sm">
+              <div className="relative overflow-hidden rounded-xl border border-slate-800 bg-slate-900/60 p-3.5 sm:p-5 shadow-sm">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
                     Office Carbon Footprint
@@ -1186,7 +1262,7 @@ export default function Dashboard() {
                   </div>
                 </div>
                 <div className="mt-3 flex items-baseline gap-2">
-                  <span className="font-mono text-3xl font-extrabold tracking-tight text-white">
+                  <span className="font-mono text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
                     {(analytics.carbon_g ?? 0).toFixed(1)}
                   </span>
                   <span className="text-sm font-semibold text-slate-400">g CO₂</span>
@@ -1323,9 +1399,9 @@ export default function Dashboard() {
           /* ================================================================= */
           <div className="space-y-6">
             {/* Live Metric Primary KPI Cards */}
-            <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <section className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
               {/* Total RMS Current */}
-              <div className="relative overflow-hidden rounded-xl border border-slate-800 bg-slate-900/60 p-5 shadow-sm">
+              <div className="relative overflow-hidden rounded-xl border border-slate-800 bg-slate-900/60 p-3.5 sm:p-5 shadow-sm">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-medium uppercase tracking-wider text-slate-400">
                     Total RMS Current
@@ -1335,7 +1411,7 @@ export default function Dashboard() {
                   </div>
                 </div>
                 <div className="mt-3 flex items-baseline gap-2">
-                  <span className="font-mono text-3xl font-extrabold tracking-tight text-white">
+                  <span className="font-mono text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
                     {totalCurrent.toFixed(2)}
                   </span>
                   <span className="text-sm font-semibold text-blue-400">A</span>
@@ -1350,7 +1426,7 @@ export default function Dashboard() {
               </div>
 
               {/* Active Total Power & Peak Demand */}
-              <div className="relative overflow-hidden rounded-xl border border-slate-800 bg-slate-900/60 p-5 shadow-sm">
+              <div className="relative overflow-hidden rounded-xl border border-slate-800 bg-slate-900/60 p-3.5 sm:p-5 shadow-sm">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-medium uppercase tracking-wider text-slate-400">
                     Active Total Power
@@ -1360,7 +1436,7 @@ export default function Dashboard() {
                   </div>
                 </div>
                 <div className="mt-3 flex items-baseline gap-2">
-                  <span className="font-mono text-3xl font-extrabold tracking-tight text-white">
+                  <span className="font-mono text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
                     {totalPower >= 1000 ? (totalPower / 1000).toFixed(2) : totalPower.toFixed(1)}
                   </span>
                   <span className="text-sm font-semibold text-blue-400">
@@ -1375,7 +1451,7 @@ export default function Dashboard() {
               </div>
 
               {/* Mains Voltage */}
-              <div className="relative overflow-hidden rounded-xl border border-slate-800 bg-slate-900/60 p-5 shadow-sm">
+              <div className="relative overflow-hidden rounded-xl border border-slate-800 bg-slate-900/60 p-3.5 sm:p-5 shadow-sm">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-medium uppercase tracking-wider text-slate-400">
                     Mains Voltage
@@ -1385,7 +1461,7 @@ export default function Dashboard() {
                   </div>
                 </div>
                 <div className="mt-3 flex items-baseline gap-2">
-                  <span className="font-mono text-3xl font-extrabold tracking-tight text-white">
+                  <span className="font-mono text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
                     {voltage.toFixed(1)}
                   </span>
                   <span className="text-sm font-semibold text-blue-400">V (RMS)</span>
@@ -1447,9 +1523,9 @@ export default function Dashboard() {
             </section>
 
             {/* Industrial Analytics, Cost, Carbon & Edge Latency Row */}
-            <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <section className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
               {/* Real-Time Billing & Energy Consumption */}
-              <div className="relative overflow-hidden rounded-xl border border-slate-800 bg-slate-900/60 p-5 shadow-sm">
+              <div className="relative overflow-hidden rounded-xl border border-slate-800 bg-slate-900/60 p-3.5 sm:p-5 shadow-sm">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-medium uppercase tracking-wider text-slate-400">
                     Energy & Live Cost
@@ -1459,7 +1535,7 @@ export default function Dashboard() {
                   </div>
                 </div>
                 <div className="mt-3 flex items-baseline gap-2">
-                  <span className="font-mono text-3xl font-extrabold tracking-tight text-white">
+                  <span className="font-mono text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
                     ₹{(analytics.cost_inr ?? 0).toFixed(2)}
                   </span>
                   <span className="text-xs font-semibold text-slate-400 font-mono">
@@ -1478,7 +1554,7 @@ export default function Dashboard() {
               </div>
 
               {/* Carbon Footprint / Eco Impact */}
-              <div className="relative overflow-hidden rounded-xl border border-slate-800 bg-slate-900/60 p-5 shadow-sm">
+              <div className="relative overflow-hidden rounded-xl border border-slate-800 bg-slate-900/60 p-3.5 sm:p-5 shadow-sm">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-medium uppercase tracking-wider text-slate-400">
                     Carbon Footprint
@@ -1488,7 +1564,7 @@ export default function Dashboard() {
                   </div>
                 </div>
                 <div className="mt-3 flex items-baseline gap-2">
-                  <span className="font-mono text-3xl font-extrabold tracking-tight text-white">
+                  <span className="font-mono text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
                     {(analytics.carbon_g ?? 0).toFixed(1)}
                   </span>
                   <span className="text-sm font-semibold text-slate-400">g CO₂</span>
@@ -1501,7 +1577,7 @@ export default function Dashboard() {
               </div>
 
               {/* Edge TinyML Latency Benchmark */}
-              <div className="relative overflow-hidden rounded-xl border border-slate-800 bg-slate-900/60 p-5 shadow-sm">
+              <div className="relative overflow-hidden rounded-xl border border-slate-800 bg-slate-900/60 p-3.5 sm:p-5 shadow-sm">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-medium uppercase tracking-wider text-slate-400">
                     Edge TinyML Latency
@@ -1511,7 +1587,7 @@ export default function Dashboard() {
                   </div>
                 </div>
                 <div className="mt-3 flex items-baseline gap-2">
-                  <span className="font-mono text-3xl font-extrabold tracking-tight text-white">
+                  <span className="font-mono text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
                     {benchmark.inference_latency_us ?? 14}
                   </span>
                   <span className="text-sm font-semibold text-blue-400">µs</span>
@@ -1525,7 +1601,7 @@ export default function Dashboard() {
               </div>
 
               {/* Predictive Maintenance & Anomaly Detection */}
-              <div className="relative overflow-hidden rounded-xl border border-slate-800 bg-slate-900/60 p-5 shadow-sm">
+              <div className="relative overflow-hidden rounded-xl border border-slate-800 bg-slate-900/60 p-3.5 sm:p-5 shadow-sm">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-medium uppercase tracking-wider text-slate-400">
                     Predictive Health
@@ -1545,7 +1621,7 @@ export default function Dashboard() {
                   </div>
                 </div>
                 <div className="mt-3 flex items-baseline gap-2">
-                  <span className="font-mono text-3xl font-extrabold tracking-tight text-white">
+                  <span className="font-mono text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
                     {maintenance.health_score ?? 100}
                   </span>
                   <span className="text-sm font-semibold text-slate-400">%</span>
@@ -1995,9 +2071,9 @@ export default function Dashboard() {
               </div>
 
               {/* The Recharts Line Graph */}
-              <div className="h-72 w-full sm:h-96">
+              <div className="h-56 w-full sm:h-80 lg:h-96">
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={chartData} margin={{ top: 10, right: 15, left: -10, bottom: 0 }}>
+                  <LineChart data={chartData} margin={{ top: 10, right: 10, left: -15, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" opacity={0.6} />
                     <XAxis
                       dataKey="time"
@@ -2113,59 +2189,64 @@ export default function Dashboard() {
                   <p className="text-xs">No state transition events logged yet. Move the dial in Wokwi to generate events.</p>
                 </div>
               ) : (
-                <div className="overflow-x-auto rounded-xl border border-slate-800 bg-slate-950/50">
-                  <table className="w-full text-left text-xs text-slate-300">
-                    <thead className="border-b border-slate-800 bg-slate-900/80 text-[11px] uppercase tracking-wider text-slate-400">
-                      <tr>
-                        <th className="px-4 py-3">#</th>
-                        <th className="px-4 py-3">Timestamp (UTC)</th>
-                        <th className="px-4 py-3">Detected Appliance</th>
-                        <th className="px-4 py-3">ΔI Jump</th>
-                        <th className="px-4 py-3">Current</th>
-                        <th className="px-4 py-3">Power</th>
-                        <th className="px-4 py-3">Vibration</th>
-                        <th className="px-4 py-3">Edge Latency</th>
-                        <th className="px-4 py-3">Diagnostic Status</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-800/60 font-mono text-[11px]">
-                      {events.slice().reverse().map((ev) => (
-                        <tr key={`ev-${ev.id}`} className="transition-colors hover:bg-slate-900/50">
-                          <td className="px-4 py-2.5 text-slate-500">{ev.id}</td>
-                          <td className="px-4 py-2.5 text-slate-400">
-                            {new Date(ev.timestamp).toLocaleTimeString()}
-                          </td>
-                          <td className="px-4 py-2.5 font-sans font-bold text-white">
-                            <span className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                              ev.appliance === "Electric Iron"
-                                ? "bg-amber-500/15 text-amber-300"
-                                : ev.appliance === "Ceiling Fan"
-                                ? "bg-blue-500/15 text-blue-300"
-                                : ev.appliance === "Fast Charger"
-                                ? "bg-slate-800 text-slate-300"
-                                : "bg-slate-800 text-slate-400"
-                            }`}>
-                              {ev.appliance}
-                            </span>
-                          </td>
-                          <td className="px-4 py-2.5 text-blue-400">{ev.delta_i_a > 0 ? `+${ev.delta_i_a.toFixed(2)}` : ev.delta_i_a.toFixed(2)} A</td>
-                          <td className="px-4 py-2.5 text-white">{ev.current_a.toFixed(2)} A</td>
-                          <td className="px-4 py-2.5 text-slate-300">{ev.power_w.toFixed(0)} W</td>
-                          <td className="px-4 py-2.5 text-slate-300">{ev.vibration_g.toFixed(3)} g</td>
-                          <td className="px-4 py-2.5 text-slate-400">{ev.latency_us} µs</td>
-                          <td className="px-4 py-2.5 font-sans">
-                            <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-medium ${
-                              ev.health_status.includes("Alert") || ev.health_status.includes("Abnormal")
-                                ? "bg-amber-500/15 text-amber-300"
-                                : "bg-emerald-500/10 text-emerald-300"
-                            }`}>
-                              {ev.health_status}
-                            </span>
-                          </td>
+                <div>
+                  <div className="flex sm:hidden items-center justify-end gap-1 text-[10px] text-slate-500 font-mono mb-1.5">
+                    <span>← Scroll table horizontally →</span>
+                  </div>
+                  <div className="overflow-x-auto rounded-xl border border-slate-800 bg-slate-950/50">
+                    <table className="w-full text-left text-xs text-slate-300">
+                      <thead className="border-b border-slate-800 bg-slate-900/80 text-[11px] uppercase tracking-wider text-slate-400">
+                        <tr>
+                          <th className="px-3 sm:px-4 py-3">#</th>
+                          <th className="px-3 sm:px-4 py-3">Timestamp</th>
+                          <th className="px-3 sm:px-4 py-3">Detected Appliance</th>
+                          <th className="px-3 sm:px-4 py-3">ΔI</th>
+                          <th className="px-3 sm:px-4 py-3">Current</th>
+                          <th className="px-3 sm:px-4 py-3">Power</th>
+                          <th className="px-3 sm:px-4 py-3">Vibration</th>
+                          <th className="px-3 sm:px-4 py-3">Latency</th>
+                          <th className="px-3 sm:px-4 py-3">Status</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody className="divide-y divide-slate-800/60 font-mono text-[11px]">
+                        {events.slice().reverse().map((ev) => (
+                          <tr key={`ev-${ev.id}`} className="transition-colors hover:bg-slate-900/50">
+                            <td className="px-3 sm:px-4 py-2 text-slate-500">{ev.id}</td>
+                            <td className="px-3 sm:px-4 py-2 text-slate-400">
+                              {new Date(ev.timestamp).toLocaleTimeString()}
+                            </td>
+                            <td className="px-3 sm:px-4 py-2 font-sans font-bold text-white">
+                              <span className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                                ev.appliance === "Electric Iron"
+                                  ? "bg-amber-500/15 text-amber-300"
+                                  : ev.appliance === "Ceiling Fan"
+                                  ? "bg-blue-500/15 text-blue-300"
+                                  : ev.appliance === "Fast Charger"
+                                  ? "bg-slate-800 text-slate-300"
+                                  : "bg-slate-800 text-slate-400"
+                              }`}>
+                                {ev.appliance}
+                              </span>
+                            </td>
+                            <td className="px-3 sm:px-4 py-2 text-blue-400">{ev.delta_i_a > 0 ? `+${ev.delta_i_a.toFixed(2)}` : ev.delta_i_a.toFixed(2)} A</td>
+                            <td className="px-3 sm:px-4 py-2 text-white">{ev.current_a.toFixed(2)} A</td>
+                            <td className="px-3 sm:px-4 py-2 text-slate-300">{ev.power_w.toFixed(0)} W</td>
+                            <td className="px-3 sm:px-4 py-2 text-slate-300">{ev.vibration_g.toFixed(3)} g</td>
+                            <td className="px-3 sm:px-4 py-2 text-slate-400">{ev.latency_us} µs</td>
+                            <td className="px-3 sm:px-4 py-2 font-sans">
+                              <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-medium ${
+                                ev.health_status.includes("Alert") || ev.health_status.includes("Abnormal")
+                                  ? "bg-amber-500/15 text-amber-300"
+                                  : "bg-emerald-500/10 text-emerald-300"
+                              }`}>
+                                {ev.health_status}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               )}
             </section>
@@ -2183,6 +2264,9 @@ export default function Dashboard() {
                 </h3>
               </div>
               <span className="text-[11px] text-slate-500 font-mono">Immutable Edge Contactor History</span>
+            </div>
+            <div className="flex sm:hidden items-center justify-end gap-1 text-[10px] text-slate-500 font-mono mb-1">
+              <span>← Scroll table horizontally →</span>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs font-mono">
@@ -2221,8 +2305,8 @@ export default function Dashboard() {
 
         {/* Remote Load Shedding Confirmation Modal Dialog */}
         {showTripModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-            <div className="w-full max-w-lg rounded-2xl border border-slate-700 bg-slate-900 p-6 shadow-2xl animate-in fade-in duration-200">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-3 sm:p-4">
+            <div className="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl border border-slate-700 bg-slate-900 p-4 sm:p-6 shadow-2xl animate-in fade-in duration-200">
               <div className="flex items-center gap-3">
                 <div className={`p-2.5 rounded-xl ${tripAction === "TRIP" ? "bg-rose-500/20 text-rose-400 ring-1 ring-rose-500/30" : "bg-emerald-500/20 text-emerald-400 ring-1 ring-emerald-500/30"}`}>
                   <AlertOctagon className="h-6 w-6" />
