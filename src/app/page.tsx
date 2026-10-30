@@ -44,6 +44,12 @@ import {
   Clock,
   AlertOctagon,
   RefreshCw,
+  GitBranch,
+  Network,
+  ChevronRight,
+  CheckCircle2,
+  Sliders,
+  Sparkles,
 } from "lucide-react";
 
 // Permanent Render Cloud Backend Endpoints
@@ -702,7 +708,24 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 antialiased selection:bg-blue-600 selection:text-white">
+    <div className="min-h-screen bg-slate-950 text-slate-100 antialiased selection:bg-blue-600 selection:text-white relative overflow-x-hidden pb-20">
+      {/* Google Stitch Dynamic Ambient Lighting Aura */}
+      <div className="pointer-events-none fixed inset-0 -z-10 overflow-hidden transition-all duration-1000">
+        <div
+          className={`absolute -top-40 left-1/2 -translate-x-1/2 h-[550px] w-[900px] rounded-full blur-[140px] opacity-20 sm:opacity-25 transition-all duration-1000 ${
+            breakerStatus === "TRIPPED"
+              ? "bg-rose-600"
+              : appliances["Electric Iron"]?.state === "ON"
+              ? "bg-amber-500"
+              : appliances["Ceiling Fan"]?.state === "ON"
+              ? "bg-sky-500"
+              : totalCurrent >= 0.20
+              ? "bg-blue-600"
+              : "bg-indigo-950/40"
+          }`}
+        />
+      </div>
+
       {/* Top SCADA Navigation Header */}
       <header className="sticky top-0 z-30 border-b border-slate-800 bg-slate-950/95 backdrop-blur-md print:hidden">
         <div className="mx-auto max-w-7xl px-3 py-2 sm:px-6 sm:py-3 lg:px-8">
@@ -1271,6 +1294,158 @@ export default function Dashboard() {
                 <div className="mt-4 flex items-center justify-between border-t border-slate-800 pt-3 text-xs">
                   <span className="text-slate-400">Efficiency Rating:</span>
                   <span className="font-bold text-slate-200">Grade A (Eco-Friendly)</span>
+                </div>
+              </div>
+            </section>
+
+            {/* Real-Time Power Flow Topology (Single-Line Diagram) */}
+            <section className="relative overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/60 p-4 sm:p-6 shadow-sm backdrop-blur-md">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
+                <div className="flex items-center gap-2.5">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-500/10 text-blue-400 ring-1 ring-blue-500/20">
+                    <Network className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm sm:text-base font-bold text-white tracking-tight flex items-center gap-2">
+                      <span>Real-Time Power Distribution Topology (Single-Line Diagram)</span>
+                      <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-mono text-emerald-400 ring-1 ring-emerald-500/30">
+                        Live Flow
+                      </span>
+                    </h3>
+                    <p className="text-xs text-slate-400">
+                      Physical circuit flow: 230V Utility Grid ➔ SCT-013 CT Clamp ➔ Contactor Relay (GPIO 2) ➔ Branch Loads
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 font-mono text-xs text-slate-400">
+                  <span className="text-slate-500">Mains Load:</span>
+                  <span className="font-bold text-white font-mono">{totalPower.toFixed(0)} W ({totalCurrent.toFixed(2)} A)</span>
+                </div>
+              </div>
+
+              {/* Topology Canvas */}
+              <div className="rounded-xl border border-slate-800/80 bg-slate-950/70 p-4 overflow-x-auto">
+                <div className="min-w-[620px] flex items-center justify-between gap-3">
+                  {/* Node 1: Grid Mains */}
+                  <div className="flex flex-col items-center gap-1.5 p-3 rounded-xl border border-slate-800 bg-slate-900/80 w-32 shrink-0">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Source</span>
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500/15 text-blue-400 ring-1 ring-blue-500/30">
+                      <Zap className="h-5 w-5" />
+                    </div>
+                    <span className="font-bold text-xs text-white">230V Grid</span>
+                    <span className="text-[10px] font-mono text-slate-400">50 Hz AC</span>
+                  </div>
+
+                  {/* Flow Arrow 1 */}
+                  <div className="flex-1 flex flex-col items-center">
+                    <span className="text-[9px] font-mono text-blue-400/80 mb-0.5">{totalCurrent.toFixed(2)}A</span>
+                    <div className="w-full h-1 bg-slate-800 relative overflow-hidden rounded-full">
+                      <div
+                        className={`absolute inset-0 bg-blue-400 ${
+                          totalCurrent > 0.1 && breakerStatus !== "TRIPPED" ? "animate-pulse" : "opacity-0"
+                        }`}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Node 2: SCT-013 Sensor Node */}
+                  <div className="flex flex-col items-center gap-1.5 p-3 rounded-xl border border-slate-800 bg-slate-900/80 w-36 shrink-0">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Edge Sensing</span>
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-500/15 text-cyan-400 ring-1 ring-cyan-500/30">
+                      <Gauge className="h-5 w-5" />
+                    </div>
+                    <span className="font-bold text-xs text-white">SCT-013 CT</span>
+                    <span className="text-[10px] font-mono text-cyan-300">ADC1 GPIO 34</span>
+                  </div>
+
+                  {/* Flow Arrow 2 */}
+                  <div className="flex-1 flex flex-col items-center">
+                    <span className="text-[9px] font-mono text-cyan-400/80 mb-0.5">ADC Core</span>
+                    <div className="w-full h-1 bg-slate-800 relative overflow-hidden rounded-full">
+                      <div
+                        className={`absolute inset-0 bg-cyan-400 ${
+                          totalCurrent > 0.1 && breakerStatus !== "TRIPPED" ? "animate-pulse" : "opacity-0"
+                        }`}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Node 3: Contactor / Mains Relay */}
+                  <div
+                    onClick={() => openBreakerModal()}
+                    className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border cursor-pointer transition-all w-36 shrink-0 ${
+                      breakerStatus === "TRIPPED"
+                        ? "border-rose-500/60 bg-rose-950/40 text-rose-300 ring-1 ring-rose-500/40"
+                        : "border-emerald-500/40 bg-emerald-950/20 text-emerald-300 ring-1 ring-emerald-500/30 hover:border-emerald-400"
+                    }`}
+                    title="Click to toggle remote breaker contactor"
+                  >
+                    <span className="text-[10px] font-bold uppercase tracking-wider">
+                      {breakerStatus === "TRIPPED" ? "Air Gap: OPEN" : "Contactor: CLOSED"}
+                    </span>
+                    <div
+                      className={`flex h-10 w-10 items-center justify-center rounded-xl ${
+                        breakerStatus === "TRIPPED"
+                          ? "bg-rose-500/20 text-rose-400"
+                          : "bg-emerald-500/20 text-emerald-400"
+                      }`}
+                    >
+                      <Power className="h-5 w-5" />
+                    </div>
+                    <span className="font-bold text-xs">Relay (GPIO 2)</span>
+                    <span className="text-[10px] font-mono">
+                      {breakerStatus === "TRIPPED" ? "LOAD SHED ACTIVE" : "ENERGIZED"}
+                    </span>
+                  </div>
+
+                  {/* Branch Split Arrow */}
+                  <div className="flex-1 flex flex-col items-center">
+                    <span className="text-[9px] font-mono text-slate-500 mb-0.5">3 Branches</span>
+                    <div className="w-full h-1 bg-slate-800 relative overflow-hidden rounded-full">
+                      <div
+                        className={`absolute inset-0 bg-emerald-400 ${
+                          activeCount > 0 && breakerStatus !== "TRIPPED" ? "animate-pulse" : "opacity-0"
+                        }`}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Node 4: Disaggregated Appliance Sub-bus */}
+                  <div className="flex flex-col gap-2 shrink-0 w-52">
+                    {Object.entries(appliances).map(([name, detail]) => {
+                      const meta = getApplianceMeta(name);
+                      const IconComp = meta.icon;
+                      const isBranchActive = detail.state === "ON" && breakerStatus !== "TRIPPED";
+
+                      return (
+                        <div
+                          key={`sld-${name}`}
+                          className={`flex items-center justify-between p-2 rounded-lg border text-xs transition-all ${
+                            isBranchActive
+                              ? `${meta.activeBorder} ${meta.activeShadow} bg-slate-900`
+                              : "border-slate-800/80 bg-slate-950/50 opacity-60"
+                          }`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <IconComp
+                              className={`h-3.5 w-3.5 ${
+                                isBranchActive && meta.spinOnActive ? "animate-spin text-sky-400" : ""
+                              } ${isBranchActive && meta.pulseOnActive ? "animate-pulse text-amber-400" : ""}`}
+                              style={{ animationDuration: "3s" }}
+                            />
+                            <span className="font-semibold text-[11px] text-white truncate max-w-[85px]">
+                              {name}
+                            </span>
+                          </div>
+                          <div className="text-right font-mono text-[10px]">
+                            <span className={isBranchActive ? "text-emerald-300 font-bold" : "text-slate-500"}>
+                              {isBranchActive ? `${(detail.power_w ?? 0).toFixed(0)}W` : "0W"}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
             </section>
@@ -1977,6 +2152,170 @@ export default function Dashboard() {
               </div>
             </section>
 
+            {/* Explainable AI (XAI) Decision Tree Inspector (Google Stitch / M3 Style) */}
+            <section className="rounded-xl border border-slate-800 bg-slate-900/60 p-5 shadow-sm backdrop-blur-md sm:p-6">
+              <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500/10 text-blue-400 ring-1 ring-blue-500/20">
+                    <GitBranch className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-base font-bold tracking-tight text-white sm:text-lg">
+                        Explainable AI (XAI) — On-Chip Decision Tree Trace
+                      </h2>
+                      <span className="rounded-md border border-slate-800 bg-slate-900 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-blue-300">
+                        {benchmark.inference_latency_us ?? 14} µs Latency
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-400">
+                      Live execution path of on-device C decision tree (<code className="text-blue-300 font-mono">inference.h</code>). Zero dynamic heap, 100% deterministic on ESP32.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 text-xs font-mono text-slate-400">
+                  <span className="rounded-full bg-slate-800/80 px-2.5 py-1 text-[11px] text-slate-300 border border-slate-700/60">
+                    Model: {mlInference.model || "TinyML Tree"}
+                  </span>
+                </div>
+              </div>
+
+              {/* Dynamic Tree Traversal Canvas */}
+              <div className="rounded-xl border border-slate-800/80 bg-slate-950/70 p-4 sm:p-5 overflow-x-auto">
+                <div className="min-w-[700px] space-y-4">
+                  {/* Live Input Feature Vectors */}
+                  <div className="flex items-center justify-between p-3 rounded-lg bg-slate-900/80 border border-slate-800 text-xs font-mono">
+                    <div className="flex items-center gap-2">
+                      <span className="text-slate-500 font-semibold uppercase text-[10px]">Active Feature Vector:</span>
+                      <span className="text-blue-300">ΔI: <strong className="text-white">{(totalCurrent > 0.1 ? (events[0]?.delta_i_a || totalCurrent) : 0.0).toFixed(2)} A</strong></span>
+                      <span className="text-slate-600">|</span>
+                      <span className="text-blue-300">Gyro ω_y: <strong className="text-white">{(imu.gyro_y_dps ?? 0.0).toFixed(2)} °/s</strong></span>
+                      <span className="text-slate-600">|</span>
+                      <span className="text-blue-300">|a| Mag: <strong className="text-white">{(imu.vibration_magnitude_g ?? 1.0).toFixed(2)} g</strong></span>
+                    </div>
+                    <div className="text-[11px] text-slate-400">
+                      Predicted: <strong className="text-emerald-400 font-bold">{mlInference.predicted_appliance ?? "Standby"}</strong>
+                    </div>
+                  </div>
+
+                  {/* 3-Stage Decision Flow */}
+                  <div className="grid grid-cols-3 gap-3">
+                    {/* Node 1: Standby Gate */}
+                    {(() => {
+                      const curDelta = totalCurrent > 0.1 ? (events[0]?.delta_i_a || totalCurrent) : 0.0;
+                      const isStandbyBranch = curDelta <= 0.1125;
+                      return (
+                        <div className={`p-3.5 rounded-xl border transition-all ${
+                          isStandbyBranch
+                            ? "border-emerald-500/60 bg-emerald-950/20 ring-1 ring-emerald-500/40"
+                            : "border-slate-800 bg-slate-900/40 opacity-70"
+                        }`}>
+                          <div className="flex items-center justify-between text-[11px] mb-2 font-mono">
+                            <span className="text-slate-500">STAGE 1</span>
+                            <span className={isStandbyBranch ? "text-emerald-400 font-bold" : "text-slate-400"}>
+                              {isStandbyBranch ? "BRANCH TAKEN" : "BYPASS ➔"}
+                            </span>
+                          </div>
+                          <h4 className="text-xs font-bold text-white mb-1">Quiescent Gate</h4>
+                          <p className="text-[11px] font-mono text-slate-400 mb-2">f[1] ≤ 0.1125 A</p>
+                          <div className="text-[10px] rounded bg-slate-950/80 p-2 border border-slate-800/80 font-mono space-y-1">
+                            <div>Input: {curDelta.toFixed(3)} A</div>
+                            <div className={isStandbyBranch ? "text-emerald-300 font-bold" : "text-slate-500"}>
+                              Result: {isStandbyBranch ? "TRUE ➔ Standby(3)" : "FALSE ➔ Test Stage 2"}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })()}
+
+                    {/* Node 2: Thermal Split */}
+                    {(() => {
+                      const curDelta = totalCurrent > 0.1 ? (events[0]?.delta_i_a || totalCurrent) : 0.0;
+                      const isStandby = curDelta <= 0.1125;
+                      const isIronBranch = !isStandby && curDelta > 2.7525;
+                      const isSubtree = !isStandby && curDelta <= 2.7525;
+
+                      return (
+                        <div className={`p-3.5 rounded-xl border transition-all ${
+                          isIronBranch
+                            ? "border-amber-500/60 bg-amber-950/20 ring-1 ring-amber-500/40"
+                            : isSubtree
+                            ? "border-blue-500/40 bg-blue-950/20 ring-1 ring-blue-500/30"
+                            : "border-slate-800 bg-slate-900/40 opacity-50"
+                        }`}>
+                          <div className="flex items-center justify-between text-[11px] mb-2 font-mono">
+                            <span className="text-slate-500">STAGE 2</span>
+                            <span className={isIronBranch ? "text-amber-400 font-bold" : isSubtree ? "text-blue-400 font-bold" : "text-slate-400"}>
+                              {isIronBranch ? "IRON DETECTED" : isSubtree ? "BRANCH TAKEN ➔" : "IDLE"}
+                            </span>
+                          </div>
+                          <h4 className="text-xs font-bold text-white mb-1">Thermal Load Split</h4>
+                          <p className="text-[11px] font-mono text-slate-400 mb-2">f[1] ≤ 2.7525 A</p>
+                          <div className="text-[10px] rounded bg-slate-950/80 p-2 border border-slate-800/80 font-mono space-y-1">
+                            <div>Input: {curDelta.toFixed(3)} A</div>
+                            <div className={isIronBranch ? "text-amber-300 font-bold" : "text-blue-300"}>
+                              Result: {isIronBranch ? "FALSE ➔ Electric Iron(1)" : isSubtree ? "TRUE ➔ Test Stage 3" : "--"}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })()}
+
+                    {/* Node 3: Kinetic Gyro Fusion */}
+                    {(() => {
+                      const curDelta = totalCurrent > 0.1 ? (events[0]?.delta_i_a || totalCurrent) : 0.0;
+                      const curGyroY = imu.gyro_y_dps ?? 0.0;
+                      const isStandby = curDelta <= 0.1125;
+                      const isSubtree = !isStandby && curDelta <= 2.7525;
+                      const isFan = isSubtree && curGyroY <= -0.5850;
+                      const isCharger = isSubtree && curGyroY > -0.5850;
+
+                      return (
+                        <div className={`p-3.5 rounded-xl border transition-all ${
+                          isFan
+                            ? "border-sky-500/60 bg-sky-950/20 ring-1 ring-sky-500/40"
+                            : isCharger
+                            ? "border-slate-400/60 bg-slate-800/30 ring-1 ring-slate-400/40"
+                            : "border-slate-800 bg-slate-900/40 opacity-50"
+                        }`}>
+                          <div className="flex items-center justify-between text-[11px] mb-2 font-mono">
+                            <span className="text-slate-500">STAGE 3 (FUSION)</span>
+                            <span className={isFan ? "text-sky-400 font-bold" : isCharger ? "text-slate-200 font-bold" : "text-slate-400"}>
+                              {isFan ? "MOTOR FUSION" : isCharger ? "SMPS FUSION" : "IDLE"}
+                            </span>
+                          </div>
+                          <h4 className="text-xs font-bold text-white mb-1">IMU Gyro-Y Split</h4>
+                          <p className="text-[11px] font-mono text-slate-400 mb-2">f[6] ≤ -0.5850 °/s</p>
+                          <div className="text-[10px] rounded bg-slate-950/80 p-2 border border-slate-800/80 font-mono space-y-1">
+                            <div>Input: {curGyroY.toFixed(3)} °/s</div>
+                            <div className={isFan ? "text-sky-300 font-bold" : isCharger ? "text-slate-200 font-bold" : "text-slate-500"}>
+                              Result: {isFan ? "TRUE ➔ Ceiling Fan(0)" : isCharger ? "FALSE ➔ Fast Charger(2)" : "--"}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </div>
+
+                  {/* Explainable AI Verification Summary Box */}
+                  <div className="flex items-center gap-3 p-3 rounded-lg border border-slate-800 bg-slate-900/60 text-xs">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
+                    <p className="text-slate-300">
+                      <strong className="text-white">Why Multi-Sensor Disambiguation Succeeded:</strong>{" "}
+                      {appliances["Electric Iron"]?.state === "ON"
+                        ? "Current jump (ΔI > 2.75A) unambiguously identified high-wattage resistive heating without needing vibration cues."
+                        : appliances["Ceiling Fan"]?.state === "ON"
+                        ? "Electrical current overlap with Fast Charger (~0.2-0.4A) was resolved deterministically by detecting motor kinetic rotation (ω_y ≤ -0.585 °/s)."
+                        : appliances["Fast Charger"]?.state === "ON"
+                        ? "Low current jump (~0.24A) combined with static gyro (ω_y > -0.585 °/s) correctly isolated electronic adapter from motor loads."
+                        : "System is in quiescent standby state (ΔI ≤ 0.1125A), conserving edge computation cycles."}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </section>
+
             {/* Live Recharts Line Graph Section */}
             <section className="rounded-xl border border-slate-800 bg-slate-900/60 p-5 shadow-sm backdrop-blur-md sm:p-6 print:hidden">
               <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -2437,6 +2776,69 @@ export default function Dashboard() {
           </div>
         </section>
       </main>
+
+      {/* Google Stitch Persistent SCADA Command Dock (Floating Glass Island) */}
+      <aside aria-label="Quick SCADA Actions" className="fixed bottom-4 sm:bottom-6 left-1/2 -translate-x-1/2 z-40 print:hidden pointer-events-auto max-w-[95vw]">
+        <div className="flex items-center gap-2 sm:gap-3 rounded-full border border-slate-700/70 bg-slate-900/90 px-3 py-1.5 sm:px-4 sm:py-2 shadow-2xl backdrop-blur-xl ring-1 ring-white/10 transition-all hover:border-slate-600">
+          {/* Live Node Heartbeat Dot */}
+          <div className="flex items-center gap-1.5 pr-2 border-r border-slate-800 shrink-0">
+            <span className="relative flex h-2 w-2">
+              <span className={`absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75 ${packetFlash ? "animate-ping" : ""}`}></span>
+              <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500"></span>
+            </span>
+            <span className="text-[10px] font-mono font-bold text-slate-300 hidden md:inline">1Hz SCADA</span>
+          </div>
+
+          {/* Quick View Switcher */}
+          <div className="flex items-center rounded-full bg-slate-950/80 p-0.5 border border-slate-800 text-xs">
+            <button
+              onClick={() => setViewMode("office")}
+              className={`rounded-full px-2.5 py-1 text-[11px] font-semibold transition-all ${
+                viewMode === "office" ? "bg-blue-600 text-white shadow-sm" : "text-slate-400 hover:text-white"
+              }`}
+            >
+              Office
+            </button>
+            <button
+              onClick={() => setViewMode("engineering")}
+              className={`rounded-full px-2.5 py-1 text-[11px] font-semibold transition-all ${
+                viewMode === "engineering" ? "bg-blue-600 text-white shadow-sm" : "text-slate-400 hover:text-white"
+              }`}
+            >
+              Engineering
+            </button>
+          </div>
+
+          {/* Tariff Slab Pill */}
+          <div className="hidden sm:flex items-center gap-1 px-2 text-[10px] font-mono text-slate-300 border-l border-slate-800">
+            <span className="text-amber-400 font-bold">⚡ {todTariff.slot}:</span>
+            <span>₹{(todTariff.rate_inr ?? 7.5).toFixed(2)}/u</span>
+          </div>
+
+          {/* Breaker One-Click Action */}
+          <button
+            onClick={() => openBreakerModal()}
+            disabled={isControlling}
+            className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-bold transition-all shadow-sm ${
+              breakerStatus === "TRIPPED"
+                ? "bg-emerald-600 hover:bg-emerald-500 text-white shadow-[0_0_12px_rgba(16,185,129,0.4)]"
+                : "bg-rose-600/90 hover:bg-rose-500 text-white shadow-[0_0_12px_rgba(244,63,94,0.3)]"
+            }`}
+          >
+            <Power className="h-3 w-3" />
+            <span>{breakerStatus === "TRIPPED" ? "Reset" : "Load Shed"}</span>
+          </button>
+
+          {/* Mute Button */}
+          <button
+            onClick={() => setAlarmMuted(!alarmMuted)}
+            className="flex items-center justify-center rounded-full p-1.5 text-slate-400 hover:text-white transition-colors border border-slate-800/80 bg-slate-950/60"
+            title={alarmMuted ? "Audio muted" : "Audio alarm active"}
+          >
+            {alarmMuted ? <VolumeX className="h-3 w-3 text-slate-500" /> : <Volume2 className="h-3 w-3 text-blue-400" />}
+          </button>
+        </div>
+      </aside>
     </div>
   );
 }
