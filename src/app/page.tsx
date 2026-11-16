@@ -708,7 +708,21 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 antialiased selection:bg-blue-600 selection:text-white relative overflow-x-hidden pb-20">
+    <div className="min-h-screen bg-slate-950 text-slate-100 antialiased selection:bg-blue-600 selection:text-white relative overflow-x-hidden pb-32 sm:pb-36">
+      {/* SCADA Industrial Motion Styles & Tabular Figures */}
+      <style>{`
+        @keyframes scadaFlow {
+          from { stroke-dashoffset: 24; }
+          to { stroke-dashoffset: 0; }
+        }
+        .scada-flow-active {
+          animation: scadaFlow 0.9s linear infinite;
+        }
+        .scada-flow-fast {
+          animation: scadaFlow 0.45s linear infinite;
+        }
+      `}</style>
+
       {/* Google Stitch Dynamic Ambient Lighting Aura */}
       <div className="pointer-events-none fixed inset-0 -z-10 overflow-hidden transition-all duration-1000">
         <div
@@ -1152,7 +1166,7 @@ export default function Dashboard() {
                   </div>
                 </div>
                 <div className="mt-3 flex items-baseline gap-2">
-                  <span className="font-mono text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
+                  <span className="font-mono tabular-nums text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
                     ₹{(analytics.cost_inr ?? 0).toFixed(2)}
                   </span>
                   <span className="text-xs font-medium text-slate-400">Session Total</span>
@@ -1179,7 +1193,7 @@ export default function Dashboard() {
                   </div>
                 </div>
                 <div className="mt-3 flex items-baseline gap-2">
-                  <span className="font-mono text-2xl font-extrabold tracking-tight text-white">
+                  <span className="font-mono tabular-nums text-2xl font-extrabold tracking-tight text-white">
                     {todTariff.slot}
                   </span>
                   <span className="text-xs font-semibold text-blue-400">
@@ -1220,7 +1234,7 @@ export default function Dashboard() {
                   </div>
                 </div>
                 <div className="mt-3 flex items-baseline gap-2">
-                  <span className="font-mono text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
+                  <span className="font-mono tabular-nums text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
                     {maintenance.health_score ?? 100}%
                   </span>
                   <span
@@ -1285,7 +1299,7 @@ export default function Dashboard() {
                   </div>
                 </div>
                 <div className="mt-3 flex items-baseline gap-2">
-                  <span className="font-mono text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
+                  <span className="font-mono tabular-nums text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
                     {(analytics.carbon_g ?? 0).toFixed(1)}
                   </span>
                   <span className="text-sm font-semibold text-slate-400">g CO₂</span>
@@ -1336,20 +1350,29 @@ export default function Dashboard() {
                     <span className="text-[10px] font-mono text-slate-400">50 Hz AC</span>
                   </div>
 
-                  {/* Flow Arrow 1 */}
-                  <div className="flex-1 flex flex-col items-center">
-                    <span className="text-[9px] font-mono text-blue-400/80 mb-0.5">{totalCurrent.toFixed(2)}A</span>
-                    <div className="w-full h-1 bg-slate-800 relative overflow-hidden rounded-full">
-                      <div
-                        className={`absolute inset-0 bg-blue-400 ${
-                          totalCurrent > 0.1 && breakerStatus !== "TRIPPED" ? "animate-pulse" : "opacity-0"
-                        }`}
-                      />
-                    </div>
+                  {/* Flow Arrow 1: Utility Grid -> CT Clamp */}
+                  <div className="flex-1 flex flex-col items-center px-1">
+                    <span className="text-[9px] font-mono tabular-nums text-blue-400/90 mb-1 font-semibold">{totalCurrent.toFixed(2)}A RMS</span>
+                    <svg className="w-full h-3 overflow-visible" viewBox="0 0 100 12" preserveAspectRatio="none">
+                      <line x1="0" y1="6" x2="100" y2="6" stroke="#1e293b" strokeWidth="2.5" strokeLinecap="round" />
+                      {totalCurrent > 0.05 && breakerStatus !== "TRIPPED" && (
+                        <line
+                          x1="0"
+                          y1="6"
+                          x2="100"
+                          y2="6"
+                          stroke="#60a5fa"
+                          strokeWidth="2.5"
+                          strokeLinecap="round"
+                          strokeDasharray="6 6"
+                          className={totalCurrent >= 2.0 ? "scada-flow-fast" : "scada-flow-active"}
+                        />
+                      )}
+                    </svg>
                   </div>
 
                   {/* Node 2: SCT-013 Sensor Node */}
-                  <div className="flex flex-col items-center gap-1.5 p-3 rounded-xl border border-slate-800 bg-slate-900/80 w-36 shrink-0">
+                  <div className="flex flex-col items-center gap-1.5 p-3 rounded-xl border border-slate-800 bg-slate-900/80 w-36 shrink-0 shadow-sm">
                     <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Edge Sensing</span>
                     <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-500/15 text-cyan-400 ring-1 ring-cyan-500/30">
                       <Gauge className="h-5 w-5" />
@@ -1358,56 +1381,78 @@ export default function Dashboard() {
                     <span className="text-[10px] font-mono text-cyan-300">ADC1 GPIO 34</span>
                   </div>
 
-                  {/* Flow Arrow 2 */}
-                  <div className="flex-1 flex flex-col items-center">
-                    <span className="text-[9px] font-mono text-cyan-400/80 mb-0.5">ADC Core</span>
-                    <div className="w-full h-1 bg-slate-800 relative overflow-hidden rounded-full">
-                      <div
-                        className={`absolute inset-0 bg-cyan-400 ${
-                          totalCurrent > 0.1 && breakerStatus !== "TRIPPED" ? "animate-pulse" : "opacity-0"
-                        }`}
-                      />
-                    </div>
+                  {/* Flow Arrow 2: CT Clamp -> Contactor Relay */}
+                  <div className="flex-1 flex flex-col items-center px-1">
+                    <span className="text-[9px] font-mono tabular-nums text-cyan-400/90 mb-1 font-semibold">1 kHz Sampling</span>
+                    <svg className="w-full h-3 overflow-visible" viewBox="0 0 100 12" preserveAspectRatio="none">
+                      <line x1="0" y1="6" x2="100" y2="6" stroke="#1e293b" strokeWidth="2.5" strokeLinecap="round" />
+                      {totalCurrent > 0.05 && breakerStatus !== "TRIPPED" && (
+                        <line
+                          x1="0"
+                          y1="6"
+                          x2="100"
+                          y2="6"
+                          stroke="#22d3ee"
+                          strokeWidth="2.5"
+                          strokeLinecap="round"
+                          strokeDasharray="6 6"
+                          className={totalCurrent >= 2.0 ? "scada-flow-fast" : "scada-flow-active"}
+                        />
+                      )}
+                    </svg>
                   </div>
 
                   {/* Node 3: Contactor / Mains Relay */}
                   <div
                     onClick={() => openBreakerModal()}
-                    className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border cursor-pointer transition-all w-36 shrink-0 ${
+                    className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border cursor-pointer transition-all hover:scale-[1.02] w-36 shrink-0 shadow-sm ${
                       breakerStatus === "TRIPPED"
-                        ? "border-rose-500/60 bg-rose-950/40 text-rose-300 ring-1 ring-rose-500/40"
-                        : "border-emerald-500/40 bg-emerald-950/20 text-emerald-300 ring-1 ring-emerald-500/30 hover:border-emerald-400"
+                        ? "border-rose-500/80 bg-rose-950/40 text-rose-300 ring-2 ring-rose-500/40 shadow-[0_0_15px_rgba(244,63,94,0.25)]"
+                        : "border-emerald-500/50 bg-emerald-950/20 text-emerald-300 ring-1 ring-emerald-500/30 hover:border-emerald-400"
                     }`}
                     title="Click to toggle remote breaker contactor"
                   >
                     <span className="text-[10px] font-bold uppercase tracking-wider">
-                      {breakerStatus === "TRIPPED" ? "Air Gap: OPEN" : "Contactor: CLOSED"}
+                      {breakerStatus === "TRIPPED" ? "AIR GAP: OPEN" : "CONTACTOR: CLOSED"}
                     </span>
                     <div
-                      className={`flex h-10 w-10 items-center justify-center rounded-xl ${
+                      className={`flex h-10 w-10 items-center justify-center rounded-xl transition-all ${
                         breakerStatus === "TRIPPED"
-                          ? "bg-rose-500/20 text-rose-400"
-                          : "bg-emerald-500/20 text-emerald-400"
+                          ? "bg-rose-500/20 text-rose-400 ring-1 ring-rose-500/40"
+                          : "bg-emerald-500/20 text-emerald-400 ring-1 ring-emerald-500/30"
                       }`}
                     >
                       <Power className="h-5 w-5" />
                     </div>
                     <span className="font-bold text-xs">Relay (GPIO 2)</span>
-                    <span className="text-[10px] font-mono">
-                      {breakerStatus === "TRIPPED" ? "LOAD SHED ACTIVE" : "ENERGIZED"}
-                    </span>
+                    <div className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-black/50 border border-slate-800">
+                      {breakerStatus === "TRIPPED" ? (
+                        <span className="text-rose-400 font-bold tracking-widest">─● / ●─</span>
+                      ) : (
+                        <span className="text-emerald-400 font-bold tracking-widest">─●══●─</span>
+                      )}
+                    </div>
                   </div>
 
-                  {/* Branch Split Arrow */}
-                  <div className="flex-1 flex flex-col items-center">
-                    <span className="text-[9px] font-mono text-slate-500 mb-0.5">3 Branches</span>
-                    <div className="w-full h-1 bg-slate-800 relative overflow-hidden rounded-full">
-                      <div
-                        className={`absolute inset-0 bg-emerald-400 ${
-                          activeCount > 0 && breakerStatus !== "TRIPPED" ? "animate-pulse" : "opacity-0"
-                        }`}
-                      />
-                    </div>
+                  {/* Flow Arrow 3: Contactor -> Branch Bus */}
+                  <div className="flex-1 flex flex-col items-center px-1">
+                    <span className="text-[9px] font-mono tabular-nums text-slate-400 mb-1 font-semibold">{activeCount} Load Branch{activeCount !== 1 ? "es" : ""}</span>
+                    <svg className="w-full h-3 overflow-visible" viewBox="0 0 100 12" preserveAspectRatio="none">
+                      <line x1="0" y1="6" x2="100" y2="6" stroke="#1e293b" strokeWidth="2.5" strokeLinecap="round" />
+                      {activeCount > 0 && breakerStatus !== "TRIPPED" && (
+                        <line
+                          x1="0"
+                          y1="6"
+                          x2="100"
+                          y2="6"
+                          stroke="#34d399"
+                          strokeWidth="2.5"
+                          strokeLinecap="round"
+                          strokeDasharray="6 6"
+                          className={totalCurrent >= 2.0 ? "scada-flow-fast" : "scada-flow-active"}
+                        />
+                      )}
+                    </svg>
                   </div>
 
                   {/* Node 4: Disaggregated Appliance Sub-bus */}
@@ -1586,7 +1631,7 @@ export default function Dashboard() {
                   </div>
                 </div>
                 <div className="mt-3 flex items-baseline gap-2">
-                  <span className="font-mono text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
+                  <span className="font-mono tabular-nums text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
                     {totalCurrent.toFixed(2)}
                   </span>
                   <span className="text-sm font-semibold text-blue-400">A</span>
@@ -1611,7 +1656,7 @@ export default function Dashboard() {
                   </div>
                 </div>
                 <div className="mt-3 flex items-baseline gap-2">
-                  <span className="font-mono text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
+                  <span className="font-mono tabular-nums text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
                     {totalPower >= 1000 ? (totalPower / 1000).toFixed(2) : totalPower.toFixed(1)}
                   </span>
                   <span className="text-sm font-semibold text-blue-400">
@@ -1636,7 +1681,7 @@ export default function Dashboard() {
                   </div>
                 </div>
                 <div className="mt-3 flex items-baseline gap-2">
-                  <span className="font-mono text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
+                  <span className="font-mono tabular-nums text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
                     {voltage.toFixed(1)}
                   </span>
                   <span className="text-sm font-semibold text-blue-400">V (RMS)</span>
@@ -1710,7 +1755,7 @@ export default function Dashboard() {
                   </div>
                 </div>
                 <div className="mt-3 flex items-baseline gap-2">
-                  <span className="font-mono text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
+                  <span className="font-mono tabular-nums text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
                     ₹{(analytics.cost_inr ?? 0).toFixed(2)}
                   </span>
                   <span className="text-xs font-semibold text-slate-400 font-mono">
@@ -1739,7 +1784,7 @@ export default function Dashboard() {
                   </div>
                 </div>
                 <div className="mt-3 flex items-baseline gap-2">
-                  <span className="font-mono text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
+                  <span className="font-mono tabular-nums text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
                     {(analytics.carbon_g ?? 0).toFixed(1)}
                   </span>
                   <span className="text-sm font-semibold text-slate-400">g CO₂</span>
@@ -1762,7 +1807,7 @@ export default function Dashboard() {
                   </div>
                 </div>
                 <div className="mt-3 flex items-baseline gap-2">
-                  <span className="font-mono text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
+                  <span className="font-mono tabular-nums text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
                     {benchmark.inference_latency_us ?? 14}
                   </span>
                   <span className="text-sm font-semibold text-blue-400">µs</span>
@@ -1796,7 +1841,7 @@ export default function Dashboard() {
                   </div>
                 </div>
                 <div className="mt-3 flex items-baseline gap-2">
-                  <span className="font-mono text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
+                  <span className="font-mono tabular-nums text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
                     {maintenance.health_score ?? 100}
                   </span>
                   <span className="text-sm font-semibold text-slate-400">%</span>
@@ -1931,7 +1976,7 @@ export default function Dashboard() {
                           <div>
                             <span className="text-[11px] uppercase tracking-wider text-slate-500">Current</span>
                             <div className="flex items-baseline gap-1">
-                              <span className="font-mono text-2xl font-bold text-white">
+                              <span className="font-mono tabular-nums text-2xl font-bold text-white">
                                 {(detail.current_rms_a ?? 0).toFixed(2)}
                               </span>
                               <span className="text-xs font-medium text-slate-400">
@@ -1942,7 +1987,7 @@ export default function Dashboard() {
                           <div className="text-right">
                             <span className="text-[11px] uppercase tracking-wider text-slate-500">Power</span>
                             <div className="flex items-baseline justify-end gap-1">
-                              <span className="font-mono text-2xl font-bold text-white">
+                              <span className="font-mono tabular-nums text-2xl font-bold text-white">
                                 {(detail.power_w ?? 0).toFixed(0)}
                               </span>
                               <span className="text-xs font-medium text-slate-400">
@@ -2199,32 +2244,53 @@ export default function Dashboard() {
                     </div>
                   </div>
 
-                  {/* 3-Stage Decision Flow */}
-                  <div className="grid grid-cols-3 gap-3">
+                  {/* 3-Stage Connected Explainable AI Flow */}
+                  <div className="grid grid-cols-1 md:grid-cols-11 gap-2 items-center">
                     {/* Node 1: Standby Gate */}
                     {(() => {
                       const curDelta = totalCurrent > 0.1 ? (events[0]?.delta_i_a || totalCurrent) : 0.0;
                       const isStandbyBranch = curDelta <= 0.1125;
                       return (
-                        <div className={`p-3.5 rounded-xl border transition-all ${
+                        <div className={`col-span-1 md:col-span-3 p-3.5 rounded-xl border transition-all shadow-sm ${
                           isStandbyBranch
-                            ? "border-emerald-500/60 bg-emerald-950/20 ring-1 ring-emerald-500/40"
+                            ? "border-emerald-500/70 bg-emerald-950/25 ring-2 ring-emerald-500/40 shadow-[0_0_12px_rgba(16,185,129,0.2)]"
                             : "border-slate-800 bg-slate-900/40 opacity-70"
                         }`}>
                           <div className="flex items-center justify-between text-[11px] mb-2 font-mono">
-                            <span className="text-slate-500">STAGE 1</span>
+                            <span className="text-slate-500 font-semibold">STAGE 1</span>
                             <span className={isStandbyBranch ? "text-emerald-400 font-bold" : "text-slate-400"}>
-                              {isStandbyBranch ? "BRANCH TAKEN" : "BYPASS ➔"}
+                              {isStandbyBranch ? "TERMINAL (LEAF)" : "BYPASS ➔"}
                             </span>
                           </div>
                           <h4 className="text-xs font-bold text-white mb-1">Quiescent Gate</h4>
                           <p className="text-[11px] font-mono text-slate-400 mb-2">f[1] ≤ 0.1125 A</p>
-                          <div className="text-[10px] rounded bg-slate-950/80 p-2 border border-slate-800/80 font-mono space-y-1">
+                          <div className="text-[10px] rounded bg-slate-950/80 p-2 border border-slate-800/80 font-mono tabular-nums space-y-1">
                             <div>Input: {curDelta.toFixed(3)} A</div>
                             <div className={isStandbyBranch ? "text-emerald-300 font-bold" : "text-slate-500"}>
                               Result: {isStandbyBranch ? "TRUE ➔ Standby(3)" : "FALSE ➔ Test Stage 2"}
                             </div>
                           </div>
+                        </div>
+                      );
+                    })()}
+
+                    {/* Connector Bridge 1 -> 2 */}
+                    {(() => {
+                      const curDelta = totalCurrent > 0.1 ? (events[0]?.delta_i_a || totalCurrent) : 0.0;
+                      const isBypassedToStage2 = curDelta > 0.1125;
+                      return (
+                        <div className="col-span-1 hidden md:flex flex-col items-center justify-center gap-1 py-2">
+                          <span className={`text-[9px] font-mono font-bold uppercase ${isBypassedToStage2 ? "text-blue-400" : "text-slate-600"}`}>
+                            {isBypassedToStage2 ? "ACTIVE" : "OFF"}
+                          </span>
+                          <div className={`p-1.5 rounded-full transition-all ${
+                            isBypassedToStage2
+                              ? "bg-blue-500/20 text-blue-400 ring-1 ring-blue-500/50 animate-pulse shadow-[0_0_8px_rgba(59,130,246,0.4)]"
+                              : "text-slate-700 bg-slate-900 border border-slate-800"
+                          }`}>
+                            <ChevronRight className="h-4 w-4" />
+                          </div>
+                          <span className="text-[8px] font-mono text-slate-500 tabular-nums">&gt;0.11A</span>
                         </div>
                       );
                     })()}
@@ -2237,27 +2303,49 @@ export default function Dashboard() {
                       const isSubtree = !isStandby && curDelta <= 2.7525;
 
                       return (
-                        <div className={`p-3.5 rounded-xl border transition-all ${
+                        <div className={`col-span-1 md:col-span-3 p-3.5 rounded-xl border transition-all shadow-sm ${
                           isIronBranch
-                            ? "border-amber-500/60 bg-amber-950/20 ring-1 ring-amber-500/40"
+                            ? "border-amber-500/70 bg-amber-950/25 ring-2 ring-amber-500/40 shadow-[0_0_12px_rgba(245,158,11,0.2)]"
                             : isSubtree
-                            ? "border-blue-500/40 bg-blue-950/20 ring-1 ring-blue-500/30"
+                            ? "border-blue-500/60 bg-blue-950/20 ring-1 ring-blue-500/40"
                             : "border-slate-800 bg-slate-900/40 opacity-50"
                         }`}>
                           <div className="flex items-center justify-between text-[11px] mb-2 font-mono">
-                            <span className="text-slate-500">STAGE 2</span>
+                            <span className="text-slate-500 font-semibold">STAGE 2</span>
                             <span className={isIronBranch ? "text-amber-400 font-bold" : isSubtree ? "text-blue-400 font-bold" : "text-slate-400"}>
-                              {isIronBranch ? "IRON DETECTED" : isSubtree ? "BRANCH TAKEN ➔" : "IDLE"}
+                              {isIronBranch ? "IRON TERMINAL" : isSubtree ? "SUBTREE ➔" : "IDLE"}
                             </span>
                           </div>
                           <h4 className="text-xs font-bold text-white mb-1">Thermal Load Split</h4>
                           <p className="text-[11px] font-mono text-slate-400 mb-2">f[1] ≤ 2.7525 A</p>
-                          <div className="text-[10px] rounded bg-slate-950/80 p-2 border border-slate-800/80 font-mono space-y-1">
+                          <div className="text-[10px] rounded bg-slate-950/80 p-2 border border-slate-800/80 font-mono tabular-nums space-y-1">
                             <div>Input: {curDelta.toFixed(3)} A</div>
-                            <div className={isIronBranch ? "text-amber-300 font-bold" : "text-blue-300"}>
+                            <div className={isIronBranch ? "text-amber-300 font-bold" : isSubtree ? "text-blue-300 font-semibold" : "text-slate-500"}>
                               Result: {isIronBranch ? "FALSE ➔ Electric Iron(1)" : isSubtree ? "TRUE ➔ Test Stage 3" : "--"}
                             </div>
                           </div>
+                        </div>
+                      );
+                    })()}
+
+                    {/* Connector Bridge 2 -> 3 */}
+                    {(() => {
+                      const curDelta = totalCurrent > 0.1 ? (events[0]?.delta_i_a || totalCurrent) : 0.0;
+                      const isStandby = curDelta <= 0.1125;
+                      const isSubtree = !isStandby && curDelta <= 2.7525;
+                      return (
+                        <div className="col-span-1 hidden md:flex flex-col items-center justify-center gap-1 py-2">
+                          <span className={`text-[9px] font-mono font-bold uppercase ${isSubtree ? "text-sky-400" : "text-slate-600"}`}>
+                            {isSubtree ? "FUSION" : "OFF"}
+                          </span>
+                          <div className={`p-1.5 rounded-full transition-all ${
+                            isSubtree
+                              ? "bg-sky-500/20 text-sky-400 ring-1 ring-sky-500/50 animate-pulse shadow-[0_0_8px_rgba(56,189,248,0.4)]"
+                              : "text-slate-700 bg-slate-900 border border-slate-800"
+                          }`}>
+                            <ChevronRight className="h-4 w-4" />
+                          </div>
+                          <span className="text-[8px] font-mono text-slate-500">Kinetic</span>
                         </div>
                       );
                     })()}
@@ -2272,24 +2360,24 @@ export default function Dashboard() {
                       const isCharger = isSubtree && curGyroY > -0.5850;
 
                       return (
-                        <div className={`p-3.5 rounded-xl border transition-all ${
+                        <div className={`col-span-1 md:col-span-3 p-3.5 rounded-xl border transition-all shadow-sm ${
                           isFan
-                            ? "border-sky-500/60 bg-sky-950/20 ring-1 ring-sky-500/40"
+                            ? "border-sky-500/70 bg-sky-950/25 ring-2 ring-sky-500/40 shadow-[0_0_12px_rgba(56,189,248,0.25)]"
                             : isCharger
-                            ? "border-slate-400/60 bg-slate-800/30 ring-1 ring-slate-400/40"
+                            ? "border-indigo-400/70 bg-indigo-950/25 ring-2 ring-indigo-400/40 shadow-[0_0_12px_rgba(129,140,248,0.25)]"
                             : "border-slate-800 bg-slate-900/40 opacity-50"
                         }`}>
                           <div className="flex items-center justify-between text-[11px] mb-2 font-mono">
-                            <span className="text-slate-500">STAGE 3 (FUSION)</span>
-                            <span className={isFan ? "text-sky-400 font-bold" : isCharger ? "text-slate-200 font-bold" : "text-slate-400"}>
+                            <span className="text-slate-500 font-semibold">STAGE 3 (FUSION)</span>
+                            <span className={isFan ? "text-sky-400 font-bold" : isCharger ? "text-indigo-300 font-bold" : "text-slate-400"}>
                               {isFan ? "MOTOR FUSION" : isCharger ? "SMPS FUSION" : "IDLE"}
                             </span>
                           </div>
                           <h4 className="text-xs font-bold text-white mb-1">IMU Gyro-Y Split</h4>
                           <p className="text-[11px] font-mono text-slate-400 mb-2">f[6] ≤ -0.5850 °/s</p>
-                          <div className="text-[10px] rounded bg-slate-950/80 p-2 border border-slate-800/80 font-mono space-y-1">
+                          <div className="text-[10px] rounded bg-slate-950/80 p-2 border border-slate-800/80 font-mono tabular-nums space-y-1">
                             <div>Input: {curGyroY.toFixed(3)} °/s</div>
-                            <div className={isFan ? "text-sky-300 font-bold" : isCharger ? "text-slate-200 font-bold" : "text-slate-500"}>
+                            <div className={isFan ? "text-sky-300 font-bold" : isCharger ? "text-indigo-200 font-bold" : "text-slate-500"}>
                               Result: {isFan ? "TRUE ➔ Ceiling Fan(0)" : isCharger ? "FALSE ➔ Fast Charger(2)" : "--"}
                             </div>
                           </div>
@@ -2777,9 +2865,12 @@ export default function Dashboard() {
         </section>
       </main>
 
+      {/* Bottom Viewport Fade Scrim to protect content from overlapping dock */}
+      <div className="pointer-events-none fixed bottom-0 inset-x-0 h-28 bg-gradient-to-t from-slate-950 via-slate-950/80 to-transparent z-30 print:hidden" />
+
       {/* Google Stitch Persistent SCADA Command Dock (Floating Glass Island) */}
       <aside aria-label="Quick SCADA Actions" className="fixed bottom-4 sm:bottom-6 left-1/2 -translate-x-1/2 z-40 print:hidden pointer-events-auto max-w-[95vw]">
-        <div className="flex items-center gap-2 sm:gap-3 rounded-full border border-slate-700/70 bg-slate-900/90 px-3 py-1.5 sm:px-4 sm:py-2 shadow-2xl backdrop-blur-xl ring-1 ring-white/10 transition-all hover:border-slate-600">
+        <div className="flex items-center gap-2 sm:gap-3 rounded-full border border-slate-700/80 bg-slate-950/90 px-3 py-1.5 sm:px-4 sm:py-2 shadow-2xl backdrop-blur-2xl ring-1 ring-white/15 transition-all hover:border-slate-500">
           {/* Live Node Heartbeat Dot */}
           <div className="flex items-center gap-1.5 pr-2 border-r border-slate-800 shrink-0">
             <span className="relative flex h-2 w-2">
@@ -2810,9 +2901,9 @@ export default function Dashboard() {
           </div>
 
           {/* Tariff Slab Pill */}
-          <div className="hidden sm:flex items-center gap-1 px-2 text-[10px] font-mono text-slate-300 border-l border-slate-800">
-            <span className="text-amber-400 font-bold">⚡ {todTariff.slot}:</span>
-            <span>₹{(todTariff.rate_inr ?? 7.5).toFixed(2)}/u</span>
+          <div className="hidden sm:flex items-center gap-1 px-2 text-[10px] font-mono tabular-nums text-slate-300 border-l border-slate-800">
+            <span className="text-amber-400 font-bold font-sans uppercase">⚡ {todTariff.slot}:</span>
+            <span className="font-semibold text-white">₹{(todTariff.rate_inr ?? 7.5).toFixed(2)}/u</span>
           </div>
 
           {/* Breaker One-Click Action */}
