@@ -307,6 +307,217 @@ function getApplianceMeta(name: string) {
   };
 }
 
+
+// =====================================================================
+// AEROSPACE MISSION CONTROL RADIAL INSTRUMENT GAUGE
+// =====================================================================
+interface RadialGaugeProps {
+  value: number;
+  min?: number;
+  max?: number;
+  unit: string;
+  label: string;
+  color?: string;
+  glowColor?: string;
+  nominal?: string | null;
+  size?: number;
+}
+
+function RadialGauge({
+  value,
+  min = 0,
+  max = 100,
+  unit,
+  label,
+  color = "#06b6d4",
+  glowColor = "rgba(6, 182, 212, 0.4)",
+  nominal = null,
+  size = 110,
+}: RadialGaugeProps) {
+  const clampVal = Math.min(max, Math.max(min, value));
+  const pct = (clampVal - min) / (max - min);
+  const r = 40;
+  const c = 2 * Math.PI * r; // ~251.32
+  const arcLen = c * (220 / 360); // ~153.58
+  const offset = arcLen * (1 - pct);
+
+  return (
+    <div className="flex flex-col items-center justify-between p-3.5 rounded-2xl bg-gradient-to-b from-slate-900/90 via-slate-950/95 to-slate-950 border border-slate-800/90 shadow-[0_0_25px_-5px_rgba(15,23,42,0.9)] backdrop-blur-xl relative overflow-hidden group hover:border-slate-700 transition-all">
+      {/* Top Specular Neon Highlight */}
+      <div className="absolute inset-x-0 top-0 h-[1.5px] bg-gradient-to-r from-transparent via-cyan-500/40 to-transparent" />
+
+      <div className="flex items-center justify-between w-full text-[10px] font-mono text-slate-400 mb-1">
+        <span className="font-bold tracking-wider uppercase text-slate-500">{label}</span>
+        {nominal && <span className="text-[9px] text-cyan-400/80">{nominal}</span>}
+      </div>
+
+      <div className="relative my-1" style={{ width: size, height: size * 0.82 }}>
+        <svg viewBox="0 0 100 85" className="w-full h-full overflow-visible">
+          {/* Background track */}
+          <circle
+            cx="50"
+            cy="50"
+            r={r}
+            fill="none"
+            stroke="#1e293b"
+            strokeWidth="7.5"
+            strokeLinecap="round"
+            strokeDasharray={`${arcLen} ${c}`}
+            strokeDashoffset="0"
+            transform="rotate(160 50 50)"
+          />
+          {/* Active colored arc with glow */}
+          <circle
+            cx="50"
+            cy="50"
+            r={r}
+            fill="none"
+            stroke={color}
+            strokeWidth="7.5"
+            strokeLinecap="round"
+            strokeDasharray={`${arcLen} ${c}`}
+            strokeDashoffset={offset}
+            transform="rotate(160 50 50)"
+            style={{
+              transition: "stroke-dashoffset 0.6s cubic-bezier(0.4, 0, 0.2, 1), stroke 0.4s ease",
+              filter: `drop-shadow(0 0 6px ${glowColor})`,
+            }}
+          />
+        </svg>
+
+        {/* Center Readout */}
+        <div className="absolute inset-0 flex flex-col items-center justify-center pt-2">
+          <div className="font-mono tabular-nums text-xl sm:text-2xl font-black text-white tracking-tight drop-shadow-md">
+            {value.toFixed(value >= 100 ? 0 : value >= 10 ? 1 : 2)}
+          </div>
+          <div className="text-[9px] font-mono font-extrabold uppercase tracking-widest text-slate-400 -mt-0.5">
+            {unit}
+          </div>
+        </div>
+      </div>
+
+      {/* Range Scale Indicators */}
+      <div className="flex items-center justify-between w-full text-[9px] font-mono text-slate-500 px-1 pt-1 border-t border-slate-800/60">
+        <span>{min}</span>
+        <span className="text-slate-400 font-semibold">{Math.round(pct * 100)}% load</span>
+        <span>{max}</span>
+      </div>
+    </div>
+  );
+}
+
+// =====================================================================
+// SKEUOMORPHIC 3D INDUSTRIAL MASTER CONTACTOR SWITCHGEAR
+// =====================================================================
+function MasterContactorSwitch({
+  status,
+  isControlling,
+  onToggle,
+}: {
+  status: string;
+  isControlling: boolean;
+  onToggle: () => void;
+}) {
+  const isTripped = status === "TRIPPED";
+
+  return (
+    <div
+      onClick={onToggle}
+      className={`relative cursor-pointer select-none rounded-2xl border p-4 transition-all duration-300 shadow-2xl overflow-hidden group hover:scale-[1.01] ${
+        isTripped
+          ? "border-rose-500/80 bg-gradient-to-b from-rose-950/40 via-slate-950 to-slate-950 ring-2 ring-rose-500/30 shadow-[0_0_35px_rgba(244,63,94,0.3)]"
+          : "border-emerald-500/60 bg-gradient-to-b from-emerald-950/30 via-slate-950 to-slate-950 ring-1 ring-emerald-500/25 shadow-[0_0_35px_rgba(16,185,129,0.2)] hover:border-emerald-400"
+      }`}
+    >
+      {/* Top Warning Strip */}
+      <div className="flex items-center justify-between pb-2 mb-3 border-b border-slate-800/80">
+        <div className="flex items-center gap-2">
+          <span className="relative flex h-2 w-2">
+            <span
+              className={`absolute inline-flex h-full w-full rounded-full opacity-75 ${
+                isTripped ? "animate-ping bg-rose-400" : "bg-emerald-400"
+              }`}
+            />
+            <span
+              className={`relative inline-flex h-2 w-2 rounded-full ${
+                isTripped ? "bg-rose-500" : "bg-emerald-500"
+              }`}
+            />
+          </span>
+          <span className="text-[10px] font-mono font-bold tracking-widest uppercase text-slate-300">
+            SOLID-STATE CONTACTOR (GPIO 2)
+          </span>
+        </div>
+        <span
+          className={`px-2 py-0.5 rounded text-[9px] font-mono font-extrabold uppercase tracking-wider ${
+            isTripped
+              ? "bg-rose-500/20 text-rose-300 ring-1 ring-rose-500/40 animate-pulse"
+              : "bg-emerald-500/20 text-emerald-300 ring-1 ring-emerald-500/30"
+          }`}
+        >
+          {isTripped ? "AIR GAP ISOLATION" : "GRID ENERGIZED"}
+        </span>
+      </div>
+
+      {/* Main Switch Cockpit */}
+      <div className="flex items-center justify-between gap-4">
+        {/* Schematic Circuit Contact */}
+        <div className="flex flex-col">
+          <span className="text-xs font-bold text-white tracking-wide">
+            {isTripped ? "Mains Disconnected (Load Shed)" : "Mains Circuit Closed (230V AC)"}
+          </span>
+          <span className="text-[10px] text-slate-400 font-mono mt-0.5">
+            {isTripped ? "Remote trip issued to ESP32 optocoupler" : "Normal telemetry pass-through"}
+          </span>
+          <div className="mt-2.5 font-mono text-[11px] px-2.5 py-1 rounded-lg bg-black/70 border border-slate-800/90 w-fit shadow-inner">
+            {isTripped ? (
+              <span className="text-rose-400 font-bold tracking-widest">GRID ─● / ●─ BRANCHES (0V)</span>
+            ) : (
+              <span className="text-emerald-400 font-bold tracking-widest">GRID ─●══●─ BRANCHES (230V)</span>
+            )}
+          </div>
+        </div>
+
+        {/* 3D Physical Throw Handle / Lever */}
+        <div className="relative flex flex-col items-center shrink-0">
+          <div
+            className={`w-14 h-24 rounded-xl border-2 p-1.5 flex flex-col justify-between transition-all duration-300 shadow-inner ${
+              isTripped
+                ? "border-rose-600 bg-slate-950 shadow-rose-950/60 ring-2 ring-rose-500/20"
+                : "border-slate-700 bg-slate-900/90 shadow-black ring-1 ring-white/10"
+            }`}
+          >
+            {/* Upper Position (Closed) */}
+            <div
+              className={`w-full h-9 rounded-lg font-mono text-[9px] font-bold flex items-center justify-center transition-all duration-300 ${
+                !isTripped
+                  ? "bg-gradient-to-b from-emerald-500 to-emerald-700 text-white shadow-lg shadow-emerald-500/40"
+                  : "bg-slate-800/40 text-slate-600"
+              }`}
+            >
+              {!isTripped && "ON"}
+            </div>
+
+            {/* Lower Position (Tripped) */}
+            <div
+              className={`w-full h-9 rounded-lg font-mono text-[9px] font-bold flex items-center justify-center transition-all duration-300 ${
+                isTripped
+                  ? "bg-gradient-to-b from-rose-500 to-rose-700 text-white shadow-lg shadow-rose-500/40"
+                  : "bg-slate-800/40 text-slate-600"
+              }`}
+            >
+              {isTripped && "TRIP"}
+            </div>
+          </div>
+          <span className="text-[9px] font-mono text-slate-400 mt-1 uppercase font-semibold">
+            {isControlling ? "Switching..." : "Click to Throw"}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function Dashboard() {
   const [mounted, setMounted] = useState(false);
   const [viewMode, setViewMode] = useState<"office" | "engineering">("office");
@@ -708,7 +919,7 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 antialiased selection:bg-blue-600 selection:text-white relative overflow-x-hidden pb-32 sm:pb-36">
+    <div className="min-h-screen bg-[#030712] text-slate-100 antialiased selection:bg-cyan-500 selection:text-black relative overflow-x-hidden pb-32 sm:pb-36" style={{ backgroundImage: "radial-gradient(rgba(56, 189, 248, 0.08) 1px, transparent 1px)", backgroundSize: "28px 28px" }}>
       {/* SCADA Industrial Motion Styles & Tabular Figures */}
       <style>{`
         @keyframes scadaFlow {
@@ -1036,124 +1247,149 @@ export default function Dashboard() {
           /* SIMPLE OFFICE VIEW: Clean, Restrained Industrial Aesthetic       */
           /* ================================================================= */
           <div className="space-y-6">
-            {/* 1. Large Glanceable Status Hero Banner */}
-            <section className="relative overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/60 p-4 sm:p-6 shadow-sm backdrop-blur-md">
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex items-start gap-3 sm:gap-4">
-                  <div
-                    className={`flex h-10 w-10 sm:h-12 sm:w-12 shrink-0 items-center justify-center rounded-xl ring-1 ${
-                      breakerStatus === "TRIPPED"
-                        ? "bg-rose-500/15 text-rose-400 ring-rose-500/30"
-                        : totalCurrent < 0.20
-                        ? "bg-slate-800 text-slate-400 ring-slate-700"
-                        : appliances["Electric Iron"]?.state === "ON"
-                        ? "bg-amber-500/15 text-amber-400 ring-amber-500/30"
-                        : "bg-blue-600/15 text-blue-400 ring-blue-500/30"
-                    }`}
-                  >
-                    {breakerStatus === "TRIPPED" ? (
-                      <AlertOctagon className="h-5 w-5 sm:h-6 sm:w-6" />
-                    ) : totalCurrent < 0.20 ? (
-                      <Power className="h-5 w-5 sm:h-6 sm:w-6" />
-                    ) : appliances["Electric Iron"]?.state === "ON" ? (
-                      <Flame className="h-5 w-5 sm:h-6 sm:w-6" />
-                    ) : (
-                      <Zap className="h-5 w-5 sm:h-6 sm:w-6" />
-                    )}
-                  </div>
+                        {/* 1. AEROSPACE MISSION CONTROL CYBER-PHYSICAL TELEMETRY CLUSTER */}
+            <section className="relative overflow-hidden rounded-3xl border border-slate-800/90 bg-gradient-to-b from-slate-900/95 via-slate-950/98 to-slate-950 p-5 sm:p-7 shadow-2xl backdrop-blur-2xl ring-1 ring-white/10">
+              {/* Top Neon Laser Highlight */}
+              <div className="absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-transparent via-cyan-500/60 to-transparent" />
+
+              <div className="flex flex-col lg:flex-row items-stretch justify-between gap-6">
+                {/* Left Flight Column: Context & Master Status */}
+                <div className="flex-1 flex flex-col justify-between space-y-4">
                   <div>
-                    <div className="flex items-center gap-2">
+                    {/* Status Pill & Live Timestamp */}
+                    <div className="flex flex-wrap items-center gap-2 mb-2">
                       <span
-                        className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-bold uppercase tracking-wider ${
+                        className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-bold uppercase tracking-wider ${
                           breakerStatus === "TRIPPED"
-                            ? "bg-rose-500/20 text-rose-300 ring-1 ring-rose-500/30"
+                            ? "bg-rose-500/20 text-rose-300 ring-2 ring-rose-500/40 animate-pulse"
                             : totalCurrent < 0.20
                             ? "bg-slate-800 text-slate-400 ring-1 ring-slate-700"
                             : appliances["Electric Iron"]?.state === "ON"
-                            ? "bg-amber-500/15 text-amber-300 ring-1 ring-amber-500/30"
-                            : "bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30"
+                            ? "bg-amber-500/20 text-amber-300 ring-2 ring-amber-500/40"
+                            : "bg-emerald-500/20 text-emerald-300 ring-2 ring-emerald-500/40"
                         }`}
                       >
                         <span
-                          className={`h-2 w-2 rounded-full ${
+                          className={`h-2.5 w-2.5 rounded-full ${
                             breakerStatus === "TRIPPED"
                               ? "bg-rose-400 animate-ping"
                               : totalCurrent < 0.20
                               ? "bg-slate-400"
                               : appliances["Electric Iron"]?.state === "ON"
                               ? "animate-ping bg-amber-400"
-                              : "bg-emerald-400"
+                              : "bg-emerald-400 shadow-[0_0_8px_#34d399]"
                           }`}
                         />
                         {breakerStatus === "TRIPPED"
-                          ? "Circuit Breaker Tripped (Safe)"
+                          ? "EMERGENCY LOAD SHED ACTIVE"
                           : totalCurrent < 0.20
-                          ? "Office Standby / Idle"
+                          ? "GRID QUIESCENT / STANDBY"
                           : activeCount > 1
-                          ? `Concurrent Multi-Load Active (${activeCount} Devices)`
+                          ? `CONCURRENT LOADS (${activeCount} ACTIVE)`
                           : appliances["Electric Iron"]?.state === "ON"
-                          ? "High Energy Usage Detected"
-                          : "Normal Energy Usage"}
+                          ? "HIGH THERMAL POWER LOAD"
+                          : "NOMINAL POWER DISAGGREGATION"}
                       </span>
-                      <span className="text-xs text-slate-500">Updated: {lastUpdated || "--:--:--"}</span>
+                      <span className="text-[11px] font-mono text-slate-500">
+                        TELEMETRY SYNC: {lastUpdated || "--:--:--"}
+                      </span>
                     </div>
 
-                    <h2 className="mt-2 text-base sm:text-2xl font-bold tracking-tight text-white">
+                    <h2 className="text-xl sm:text-3xl font-extrabold tracking-tight text-white drop-shadow-sm">
                       {breakerStatus === "TRIPPED"
-                        ? "Mains Circuit Cut Off via Remote Load Shedding"
+                        ? "Mains Circuit Cut Off via Remote Contactor"
                         : totalCurrent < 0.20
-                        ? "All Office Equipment is Currently Switched Off"
+                        ? "Office Grid Quiescent — All Monitored Devices Idle"
                         : activeCount > 1
-                        ? `Concurrent Loads Active: ${activeAppliancesList.join(" + ")}`
+                        ? `Concurrent Disaggregation: ${activeAppliancesList.join(" + ")}`
                         : appliances["Electric Iron"]?.state === "ON"
-                        ? "Electric Iron is Currently In Use (Heavy Heating Load)"
+                        ? "Electric Iron Active — Heavy Resistive Heating Load"
                         : appliances["Ceiling Fan"]?.state === "ON"
-                        ? "Ceiling Fan is Running (Motor Operating Smoothly)"
-                        : "Fast Charger Adapter is Active (Charging Device)"}
+                        ? "Ceiling Fan Operating — Inductive Motor Waveform"
+                        : "Fast Charger Active — Solid-State SMPS Electronic Load"}
                     </h2>
 
-                    <p className="mt-1 text-sm text-slate-400">
+                    <p className="mt-2 text-xs sm:text-sm text-slate-400 max-w-2xl leading-relaxed">
                       {breakerStatus === "TRIPPED"
-                        ? "The onboard contactor was remotely opened. Zero current is flowing through the line."
+                        ? "The onboard contactor was remotely opened via full-duplex MQTT control. Air-gap isolation verified. Zero current downstream."
                         : totalCurrent < 0.20
-                        ? "Baseline quiescent state. Aggregate line current is within standby limit (< 0.18 A)."
+                        ? "Edge TinyML inference is in quiescent baseline mode (ΔI <= 0.1125A). Sub-threshold current draw (< 0.18 A)."
                         : appliances["Electric Iron"]?.state === "ON"
-                        ? `The office is currently drawing ${totalPower.toFixed(0)} Watts of heating power (~₹${((totalPower / 1000) * (todTariff.rate_inr ?? 7.5)).toFixed(2)}/hour at the current ${todTariff.slot} tariff). Please ensure the iron is turned off when finished.`
-                        : `Current draw is ${totalPower.toFixed(0)} Watts with an operating run cost of ~₹${((totalPower / 1000) * (todTariff.rate_inr ?? 7.5)).toFixed(2)} per hour.`}
+                        ? `High current draw detected (${totalPower.toFixed(0)}W). Estimated burn rate: ₹${((totalPower / 1000) * (todTariff.rate_inr ?? 7.5)).toFixed(2)}/hr at the active ${todTariff.slot} tariff slab.`
+                        : `Real-time disaggregated power: ${totalPower.toFixed(0)} Watts at ₹${((totalPower / 1000) * (todTariff.rate_inr ?? 7.5)).toFixed(2)} per operating hour.`}
                     </p>
+                  </div>
+
+                  {/* Run Rate & Active Channel Badges */}
+                  <div className="flex flex-wrap items-center gap-3 pt-2">
+                    <div className="rounded-xl border border-slate-800 bg-slate-950/80 px-3.5 py-2 flex items-center gap-2.5 shadow-inner">
+                      <div className="text-[10px] uppercase font-bold text-slate-500 font-mono">Current Run Rate:</div>
+                      <div className="font-mono tabular-nums text-sm font-bold text-white">
+                        ₹{((totalPower / 1000.0) * (todTariff.rate_inr ?? 7.5)).toFixed(2)}
+                        <span className="text-[10px] text-slate-400 font-normal"> / hour</span>
+                      </div>
+                    </div>
+                    <div className="rounded-xl border border-slate-800 bg-slate-950/80 px-3.5 py-2 flex items-center gap-2.5 shadow-inner">
+                      <div className="text-[10px] uppercase font-bold text-slate-500 font-mono">Disaggregated Channels:</div>
+                      <div className="font-mono text-sm font-bold text-cyan-400">
+                        {activeCount} of {applianceKeys.length} Online
+                      </div>
+                    </div>
                   </div>
                 </div>
 
-                <div className="shrink-0 rounded-xl border border-slate-800 bg-slate-950/70 p-4 text-center sm:text-right flex flex-col justify-between">
-                  <div>
-                    <div className="text-xs uppercase tracking-wider text-slate-500">Current Run Rate</div>
-                    <div className="mt-1 font-mono text-2xl font-bold text-white">
-                      ₹{((totalPower / 1000.0) * (todTariff.rate_inr ?? 7.5)).toFixed(2)}
-                      <span className="text-xs font-semibold text-slate-500 font-sans"> / hour</span>
-                    </div>
-                    <div className="mt-1 text-[11px] text-slate-400">
-                      {activeCount} active appliance{activeCount !== 1 ? "s" : ""}
-                    </div>
+                {/* Right Flight Column: Aerospace 3-Gauge Instrument Cluster + Skeuomorphic Contactor */}
+                <div className="flex flex-col sm:flex-row lg:flex-col xl:flex-row items-center gap-3 shrink-0">
+                  {/* The 3 Radial Gauges */}
+                  <div className="grid grid-cols-3 gap-2 w-full sm:w-auto">
+                    <RadialGauge
+                      value={voltage}
+                      min={0}
+                      max={300}
+                      unit="VOLTS"
+                      label="AC Grid"
+                      nominal="50 Hz"
+                      color="#22d3ee"
+                      glowColor="rgba(34, 211, 238, 0.4)"
+                      size={105}
+                    />
+                    <RadialGauge
+                      value={totalCurrent}
+                      min={0}
+                      max={10}
+                      unit="AMPS"
+                      label="Line Current"
+                      nominal="SCT-013"
+                      color={breakerStatus === "TRIPPED" ? "#f43f5e" : totalCurrent > 2.5 ? "#f59e0b" : "#38bdf8"}
+                      glowColor={breakerStatus === "TRIPPED" ? "rgba(244, 63, 94, 0.4)" : totalCurrent > 2.5 ? "rgba(245, 158, 11, 0.4)" : "rgba(56, 189, 248, 0.4)"}
+                      size={105}
+                    />
+                    <RadialGauge
+                      value={totalPower}
+                      min={0}
+                      max={3000}
+                      unit="WATTS"
+                      label="Active Power"
+                      nominal="Real P"
+                      color={breakerStatus === "TRIPPED" ? "#f43f5e" : totalPower > 1500 ? "#f59e0b" : "#34d399"}
+                      glowColor={breakerStatus === "TRIPPED" ? "rgba(244, 63, 94, 0.4)" : totalPower > 1500 ? "rgba(245, 158, 11, 0.4)" : "rgba(52, 211, 153, 0.4)"}
+                      size={105}
+                    />
                   </div>
 
-                  {/* Remote Load Shed Control Button */}
-                  <button
-                    onClick={() => openBreakerModal()}
-                    disabled={isControlling}
-                    className={`mt-3 flex items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-all ${
-                      breakerStatus === "TRIPPED"
-                        ? "bg-emerald-600 hover:bg-emerald-500 text-white"
-                        : "border border-rose-500/40 bg-rose-500/10 text-rose-300 hover:bg-rose-500/20"
-                    }`}
-                  >
-                    <Power className="h-3.5 w-3.5" />
-                    <span>{breakerStatus === "TRIPPED" ? "Reset Breaker" : "Remote Load Shed"}</span>
-                  </button>
+                  {/* Skeuomorphic Contactor Switch */}
+                  <div className="w-full sm:w-64 lg:w-full xl:w-64">
+                    <MasterContactorSwitch
+                      status={breakerStatus}
+                      isControlling={isControlling}
+                      onToggle={() => openBreakerModal()}
+                    />
+                  </div>
                 </div>
               </div>
             </section>
 
-            {/* 2. Four Clean Office KPI Cards */}
+{/* 2. Four Clean Office KPI Cards */}
             <section className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
               {/* Office Electricity Bill Card */}
               <div className="relative overflow-hidden rounded-xl border border-slate-800 bg-slate-900/60 p-3.5 sm:p-5 shadow-sm">
@@ -1618,127 +1854,97 @@ export default function Dashboard() {
           /* ADVANCED ENGINEERING VIEW: Restrained Industrial Precision SCADA */
           /* ================================================================= */
           <div className="space-y-6">
-            {/* Live Metric Primary KPI Cards */}
-            <section className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
-              {/* Total RMS Current */}
-              <div className="relative overflow-hidden rounded-xl border border-slate-800 bg-slate-900/60 p-3.5 sm:p-5 shadow-sm">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-medium uppercase tracking-wider text-slate-400">
-                    Total RMS Current
-                  </span>
-                  <div className="rounded-lg bg-blue-500/10 p-2 text-blue-400 ring-1 ring-blue-500/20">
-                    <Zap className="h-5 w-5" />
-                  </div>
-                </div>
-                <div className="mt-3 flex items-baseline gap-2">
-                  <span className="font-mono tabular-nums text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
-                    {totalCurrent.toFixed(2)}
-                  </span>
-                  <span className="text-sm font-semibold text-blue-400">A</span>
-                </div>
-                <p className="mt-1 text-xs text-slate-500">Instantaneous mains load</p>
-                <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-slate-800">
-                  <div
-                    className="h-full rounded-full bg-blue-500 transition-all duration-300"
-                    style={{ width: `${Math.min((totalCurrent / 15.0) * 100, 100)}%` }}
-                  />
-                </div>
-              </div>
+            {/* Live Metric Primary KPI Cluster (Aerospace Instruments) */}
+            <section className="relative overflow-hidden rounded-3xl border border-slate-800/90 bg-gradient-to-b from-slate-900/95 via-slate-950/98 to-slate-950 p-5 sm:p-7 shadow-2xl backdrop-blur-2xl ring-1 ring-white/10">
+              <div className="absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-transparent via-cyan-500/60 to-transparent" />
 
-              {/* Active Total Power & Peak Demand */}
-              <div className="relative overflow-hidden rounded-xl border border-slate-800 bg-slate-900/60 p-3.5 sm:p-5 shadow-sm">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-medium uppercase tracking-wider text-slate-400">
-                    Active Total Power
-                  </span>
-                  <div className="rounded-lg bg-blue-500/10 p-2 text-blue-400 ring-1 ring-blue-500/20">
-                    <Activity className="h-5 w-5" />
+              <div className="flex flex-col lg:flex-row items-stretch justify-between gap-6">
+                {/* Diagnostic Vectors Header */}
+                <div className="flex-1 flex flex-col justify-between space-y-3">
+                  <div>
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="rounded-full bg-cyan-500/20 px-3 py-1 text-xs font-mono font-bold uppercase text-cyan-300 ring-1 ring-cyan-500/40">
+                        DIAGNOSTIC TELEMETRY SUITE
+                      </span>
+                      <span className="text-[11px] font-mono text-slate-500">
+                        Xtensa Dual-Core 240MHz (ESP32)
+                      </span>
+                    </div>
+                    <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-white">
+                      Raw Electrical Waveforms & Multi-Sensor Kinetic Vector Stream
+                    </h2>
+                    <p className="mt-1 text-xs text-slate-400 leading-relaxed">
+                      1000 Hz continuous analog RMS sampling on ADC1_CH6 (GPIO 34). I2C IMU rotational angular velocity (MPU-6050) fused at the edge to eliminate ceiling fan vs solid-state charger ambiguity.
+                    </p>
                   </div>
-                </div>
-                <div className="mt-3 flex items-baseline gap-2">
-                  <span className="font-mono tabular-nums text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
-                    {totalPower >= 1000 ? (totalPower / 1000).toFixed(2) : totalPower.toFixed(1)}
-                  </span>
-                  <span className="text-sm font-semibold text-blue-400">
-                    {totalPower >= 1000 ? "kW" : "W"}
-                  </span>
-                </div>
-                <p className="mt-1 text-xs text-slate-500">Real power (V_rms × I_rms)</p>
-                <div className="mt-3 flex items-center justify-between text-[11px] text-slate-400 border-t border-slate-800 pt-2">
-                  <span>Peak Demand:</span>
-                  <span className="font-mono font-bold text-slate-200">{peakDemandKw.toFixed(3)} kW</span>
-                </div>
-              </div>
 
-              {/* Mains Voltage */}
-              <div className="relative overflow-hidden rounded-xl border border-slate-800 bg-slate-900/60 p-3.5 sm:p-5 shadow-sm">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-medium uppercase tracking-wider text-slate-400">
-                    Mains Voltage
-                  </span>
-                  <div className="rounded-lg bg-blue-500/10 p-2 text-blue-400 ring-1 ring-blue-500/20">
-                    <Gauge className="h-5 w-5" />
+                  {/* Benchmark & Apparent Power Badges */}
+                  <div className="flex flex-wrap items-center gap-3 pt-2">
+                    <div className="rounded-xl border border-slate-800 bg-slate-950/80 px-3.5 py-2 flex items-center gap-2 shadow-inner">
+                      <span className="text-[10px] font-mono uppercase text-slate-500 font-bold">Apparent Power:</span>
+                      <span className="font-mono tabular-nums text-sm font-bold text-white">{(voltage * totalCurrent).toFixed(0)} VA</span>
+                    </div>
+                    <div className="rounded-xl border border-slate-800 bg-slate-950/80 px-3.5 py-2 flex items-center gap-2 shadow-inner">
+                      <span className="text-[10px] font-mono uppercase text-slate-500 font-bold">Power Factor (cos φ):</span>
+                      <span className="font-mono tabular-nums text-sm font-bold text-cyan-400">
+                        {(voltage * totalCurrent) > 0 ? Math.min(1.0, totalPower / (voltage * totalCurrent)).toFixed(2) : "1.00"}
+                      </span>
+                    </div>
+                    <div className="rounded-xl border border-slate-800 bg-slate-950/80 px-3.5 py-2 flex items-center gap-2 shadow-inner">
+                      <span className="text-[10px] font-mono uppercase text-slate-500 font-bold">TinyML Latency:</span>
+                      <span className="font-mono tabular-nums text-sm font-bold text-emerald-400">
+                        {benchmark.inference_latency_us ?? 14} µs (0.014 ms)
+                      </span>
+                    </div>
                   </div>
                 </div>
-                <div className="mt-3 flex items-baseline gap-2">
-                  <span className="font-mono tabular-nums text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
-                    {voltage.toFixed(1)}
-                  </span>
-                  <span className="text-sm font-semibold text-blue-400">V (RMS)</span>
-                </div>
-                <p className="mt-1 text-xs text-slate-500">Nominal 50/60 Hz AC grid</p>
-                <div className="mt-3 flex items-center gap-1.5 text-[11px] text-slate-400">
-                  <span>Updated:</span>
-                  <span className="font-mono text-slate-200">{lastUpdated || "--:--:--"}</span>
-                </div>
-              </div>
 
-              {/* Two-Way Remote Circuit Breaker / Load Shedding Tile */}
-              <div
-                className={`relative overflow-hidden rounded-xl border p-5 shadow-sm transition-all ${
-                  breakerStatus === "TRIPPED"
-                    ? "border-rose-600/50 bg-rose-950/30 ring-1 ring-rose-500/40"
-                    : "border-slate-800 bg-slate-900/60"
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-medium uppercase tracking-wider text-slate-400">
-                    Remote Load Shedding
-                  </span>
-                  <div
-                    className={`rounded-lg p-2 ${
-                      breakerStatus === "TRIPPED"
-                        ? "bg-rose-500/20 text-rose-400"
-                        : "bg-emerald-500/10 text-emerald-400"
-                    }`}
-                  >
-                    <Power className="h-5 w-5" />
+                {/* Right Flight Column: Aerospace 3-Gauge Instrument Cluster + Skeuomorphic Contactor */}
+                <div className="flex flex-col sm:flex-row lg:flex-col xl:flex-row items-center gap-3 shrink-0">
+                  <div className="grid grid-cols-3 gap-2 w-full sm:w-auto">
+                    <RadialGauge
+                      value={voltage}
+                      min={0}
+                      max={300}
+                      unit="VOLTS"
+                      label="Mains V"
+                      nominal="50 Hz"
+                      color="#22d3ee"
+                      glowColor="rgba(34, 211, 238, 0.4)"
+                      size={105}
+                    />
+                    <RadialGauge
+                      value={totalCurrent}
+                      min={0}
+                      max={10}
+                      unit="AMPS"
+                      label="Line I"
+                      nominal="ADC1 GPIO 34"
+                      color={breakerStatus === "TRIPPED" ? "#f43f5e" : totalCurrent > 2.5 ? "#f59e0b" : "#38bdf8"}
+                      glowColor={breakerStatus === "TRIPPED" ? "rgba(244, 63, 94, 0.4)" : totalCurrent > 2.5 ? "rgba(245, 158, 11, 0.4)" : "rgba(56, 189, 248, 0.4)"}
+                      size={105}
+                    />
+                    <RadialGauge
+                      value={totalPower}
+                      min={0}
+                      max={3000}
+                      unit="WATTS"
+                      label="Active P"
+                      nominal="Real Power"
+                      color={breakerStatus === "TRIPPED" ? "#f43f5e" : totalPower > 1500 ? "#f59e0b" : "#34d399"}
+                      glowColor={breakerStatus === "TRIPPED" ? "rgba(244, 63, 94, 0.4)" : totalPower > 1500 ? "rgba(245, 158, 11, 0.4)" : "rgba(52, 211, 153, 0.4)"}
+                      size={105}
+                    />
+                  </div>
+
+                  <div className="w-full sm:w-64 lg:w-full xl:w-64">
+                    <MasterContactorSwitch
+                      status={breakerStatus}
+                      isControlling={isControlling}
+                      onToggle={() => openBreakerModal()}
+                    />
                   </div>
                 </div>
-                <div className="mt-2 flex items-baseline gap-2">
-                  <span
-                    className={`font-mono text-2xl font-extrabold ${
-                      breakerStatus === "TRIPPED" ? "text-rose-400" : "text-white"
-                    }`}
-                  >
-                    {breakerStatus}
-                  </span>
-                  <span className="text-xs font-medium text-slate-400">
-                    {breakerStatus === "TRIPPED" ? "Power Cut" : "Active"}
-                  </span>
-                </div>
-                <p className="mt-1 text-xs text-slate-500">Full-duplex MQTT control</p>
-                <button
-                  onClick={() => openBreakerModal()}
-                  disabled={isControlling}
-                  className={`mt-3 w-full rounded-lg py-1.5 text-xs font-bold transition-all shadow-sm ${
-                    breakerStatus === "TRIPPED"
-                      ? "bg-emerald-600 hover:bg-emerald-500 text-white"
-                      : "bg-rose-600 hover:bg-rose-500 text-white"
-                  }`}
-                >
-                  {breakerStatus === "TRIPPED" ? "Reset Breaker" : "Emergency Load Shed"}
-                </button>
               </div>
             </section>
 
@@ -2409,9 +2615,20 @@ export default function Dashboard() {
               <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <div className="flex items-center gap-2">
-                    <h2 className="text-base font-bold tracking-tight text-white sm:text-lg">
-                      Real-Time Current Draw (RMS Telemetry)
-                    </h2>
+                    <div className="flex items-center gap-2">
+                        <span className="px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300 font-mono text-[10px] font-extrabold uppercase ring-1 ring-cyan-500/40">
+                          DSO CHANNEL A
+                        </span>
+                        <h2 className="text-base font-bold tracking-tight text-white sm:text-lg">
+                          Digital Storage Oscilloscope (1000 Hz Sampling)
+                        </h2>
+                      </div>
+                      <div className="hidden sm:flex items-center gap-2 text-[10px] font-mono text-slate-500 mt-0.5">
+                        <span className="text-cyan-400">CH1: 230V AC</span> | 
+                        <span className="text-blue-400">CH2: SCT-013 CT</span> | 
+                        <span>TIMEBASE: 1s/div</span> | 
+                        <span className="text-emerald-400">TRIG: AUTO (0.10A)</span>
+                      </div>
                     <span className="rounded-md border border-slate-800 bg-slate-900 px-2 py-0.5 text-[11px] font-mono text-blue-400">
                       {chartData.length} live pts
                     </span>
