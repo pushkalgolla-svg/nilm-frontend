@@ -52,6 +52,12 @@ import {
   Sparkles,
 } from "lucide-react";
 
+import ScenarioTestbench, { TEST_SCENARIOS } from "@/components/ScenarioTestbench";
+import GridvibeCopilot from "@/components/GridvibeCopilot";
+import HarmonicAnalyzer from "@/components/HarmonicAnalyzer";
+import PredictiveMaintenanceRUL from "@/components/PredictiveMaintenanceRUL";
+import EnergyAuditModal from "@/components/EnergyAuditModal";
+
 // Permanent Render Cloud Backend Endpoints
 const API_URL = "https://nilm-backend.onrender.com/api/status";
 const CONTROL_API_URL = "https://nilm-backend.onrender.com/api/control";
@@ -530,6 +536,14 @@ export default function Dashboard() {
   const [edgeNode, setEdgeNode] = useState<EdgeNodeInfo>({ status: "ONLINE", mode: "WOKWI_SIMULATION" });
   const [recentAudits, setRecentAudits] = useState<AuditRecord[]>([]);
 
+  // Advanced Software Features: Testbench, Copilot, DSO FFT/Waveform, ISO 50001 Audit
+  const [isTestbenchOpen, setIsTestbenchOpen] = useState(false);
+  const [activeScenarioKey, setActiveScenarioKey] = useState<string | null>(null);
+  const activeScenarioKeyRef = useRef<string | null>(null);
+  const [isCopilotOpen, setIsCopilotOpen] = useState(false);
+  const [isAuditModalOpen, setIsAuditModalOpen] = useState(false);
+  const [dsoTab, setDsoTab] = useState<"waveform" | "fft">("waveform");
+
   // Remote Load Shedding Confirmation Modal
   const [showTripModal, setShowTripModal] = useState<boolean>(false);
   const [tripAction, setTripAction] = useState<"TRIP" | "RESET">("TRIP");
@@ -668,6 +682,11 @@ export default function Dashboard() {
         setWakingElapsed(0);
         setIsConnected(true);
 
+        if (activeScenarioKeyRef.current) {
+          // Virtual Scenario Injection active: keep injected electrical & IMU telemetry untouched
+          return;
+        }
+
         const rawTimestamp = data.timestamp || "";
         const nowMs = Date.now();
         const packetAgeMs = rawTimestamp ? nowMs - new Date(rawTimestamp).getTime() : 999999;
@@ -800,6 +819,44 @@ export default function Dashboard() {
       clearInterval(intervalId);
     };
   }, [bufferSeconds, alarmMuted]);
+
+  // Virtual Hardware Testbench Scenario Injector Handler
+  const handleSelectScenario = (key: string | null) => {
+    setActiveScenarioKey(key);
+    activeScenarioKeyRef.current = key;
+    if (key && TEST_SCENARIOS[key]) {
+      const sc = TEST_SCENARIOS[key];
+      setVoltage(sc.voltage_v);
+      setTotalCurrent(sc.total_current_a);
+      setTotalPower(sc.total_power_w);
+      setAppliances(sc.appliances);
+      setImu(sc.imu);
+      setMlInference(sc.ml_inference);
+      setMaintenance(sc.predictive_maintenance);
+      setBreakerStatus(sc.breaker_status);
+      setStatusMode(`Scenario: ${sc.name}`);
+
+      // Push telemetry point to DSO buffer
+      const timeStr = new Date().toLocaleTimeString();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const newPoint: Record<string, any> = {
+        time: timeStr,
+        total: sc.total_current_a,
+      };
+      Object.entries(sc.appliances).forEach(([appName, detail]) => {
+        newPoint[appName] = detail.current_rms_a ?? 0.0;
+      });
+      setChartData((prev) => [...prev, newPoint].slice(-bufferSeconds));
+
+      if (sc.breaker_status === "TRIPPED") {
+        playAlertTone(440, 300);
+      } else if (sc.predictive_maintenance.bearing_fault) {
+        playAlertTone(660, 250);
+      }
+    } else {
+      setStatusMode("Live 1Hz Telemetry");
+    }
+  };
 
   // Two-Way Remote IoT Breaker Control with Confirmation Modal
   const openBreakerModal = (action?: "TRIP" | "RESET") => {
@@ -1010,6 +1067,24 @@ export default function Dashboard() {
               {/* Mobile Right Controls: Mute + View Mode Toggle */}
               <div className="flex md:hidden items-center gap-1.5">
                 <button
+                  onClick={() => setIsTestbenchOpen(true)}
+                  className={`flex items-center justify-center rounded-lg border p-1.5 text-xs transition-colors ${
+                    activeScenarioKey
+                      ? "border-cyan-400 bg-cyan-500/20 text-cyan-300 ring-1 ring-cyan-500/40"
+                      : "border-cyan-500/30 bg-cyan-950/50 text-cyan-300"
+                  }`}
+                  title="Virtual Testbench"
+                >
+                  <Sliders className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  onClick={() => setIsCopilotOpen(true)}
+                  className="flex items-center justify-center rounded-lg border border-purple-500/40 bg-purple-950/50 p-1.5 text-xs text-purple-300"
+                  title="AI Copilot"
+                >
+                  <Sparkles className="h-3.5 w-3.5" />
+                </button>
+                <button
                   onClick={() => setAlarmMuted(!alarmMuted)}
                   className={`flex items-center justify-center rounded-lg border p-1.5 text-xs transition-colors ${
                     alarmMuted
@@ -1124,6 +1199,33 @@ export default function Dashboard() {
                   <span>Engineering View</span>
                 </button>
               </div>
+
+              {/* Virtual Hardware Testbench Button */}
+              <button
+                onClick={() => setIsTestbenchOpen(true)}
+                className={`flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-bold transition-all shadow-sm ${
+                  activeScenarioKey
+                    ? "border-cyan-400 bg-cyan-500/20 text-cyan-200 ring-2 ring-cyan-500/40 shadow-[0_0_15px_rgba(6,182,212,0.3)] animate-pulse"
+                    : "border-cyan-500/30 bg-cyan-950/40 text-cyan-300 hover:bg-cyan-900/60 hover:border-cyan-400"
+                }`}
+                title="Open Interactive Hardware Testbench & Scenario Injector"
+              >
+                <Sliders className="h-3.5 w-3.5 text-cyan-400" />
+                <span>Testbench</span>
+                {activeScenarioKey && (
+                  <span className="h-1.5 w-1.5 rounded-full bg-cyan-400 animate-ping" />
+                )}
+              </button>
+
+              {/* Gridvibe Copilot AI Assistant Button */}
+              <button
+                onClick={() => setIsCopilotOpen(true)}
+                className="flex items-center gap-1.5 rounded-xl border border-purple-500/40 bg-purple-950/40 px-3 py-1.5 text-xs font-bold text-purple-200 hover:bg-purple-900/60 hover:border-purple-400 transition-all shadow-[0_0_15px_rgba(168,85,247,0.2)]"
+                title="Open Gridvibe Copilot (AI SCADA Assistant)"
+              >
+                <Sparkles className="h-3.5 w-3.5 text-purple-400 animate-pulse" />
+                <span>AI Copilot</span>
+              </button>
 
               {/* Connection Status Badge (6-State FSM) */}
               <div
@@ -2096,6 +2198,17 @@ export default function Dashboard() {
               </div>
             </section>
 
+            {/* ISO 10816 Predictive Vibration Severity & Remaining Useful Life (RUL) Section */}
+            <section className="mb-6">
+              <PredictiveMaintenanceRUL
+                healthScore={maintenance.health_score ?? 100}
+                bearingFault={maintenance.bearing_fault ?? false}
+                vibrationMagnitudeG={imu.vibration_magnitude_g ?? 1.0}
+                gyroYDps={imu.gyro_y_dps ?? 0.0}
+                runtimeStr={dutyCycles["Ceiling Fan"]?.runtime_str ?? "0m"}
+              />
+            </section>
+
             {/* Dynamic Disaggregated Appliance UI Cards with Duty Cycles */}
             <section>
               <div className="mb-3 flex items-center justify-between">
@@ -2624,7 +2737,7 @@ export default function Dashboard() {
                           DSO CHANNEL A
                         </span>
                         <h2 className="text-base font-bold tracking-tight text-white sm:text-lg">
-                          Digital Storage Oscilloscope (1000 Hz Sampling)
+                          Digital Storage Oscilloscope & Power Quality (1000 Hz)
                         </h2>
                       </div>
                       <div className="hidden sm:flex items-center gap-2 text-[10px] font-mono text-slate-500 mt-0.5">
@@ -2638,155 +2751,197 @@ export default function Dashboard() {
                     </span>
                   </div>
                   <p className="text-xs text-slate-400">
-                    Live stream visualizer of overall current and individual appliance traces
+                    Live stream visualizer of overall current, individual appliance traces, and harmonic FFT spectrum
                   </p>
                 </div>
 
                 {/* Controls */}
                 <div className="flex flex-wrap items-center gap-2">
-                  {/* Window Selector */}
-                  <div className="flex items-center gap-1 rounded-lg border border-slate-800 bg-slate-950/70 p-1 text-xs">
-                    <span className="px-2 text-slate-500">Window:</span>
-                    {[15, 30, 60].map((sec) => (
-                      <button
-                        key={sec}
-                        onClick={() => setBufferSeconds(sec)}
-                        className={`rounded px-2 py-1 font-medium transition-colors ${
-                          bufferSeconds === sec
-                            ? "bg-blue-600 text-white"
-                            : "text-slate-400 hover:text-white"
-                        }`}
-                      >
-                        {sec}s
-                      </button>
-                    ))}
+                  {/* DSO Mode Switcher: Waveform vs Harmonic FFT */}
+                  <div className="flex items-center rounded-xl bg-slate-950 p-1 border border-slate-800 text-xs">
+                    <button
+                      onClick={() => setDsoTab("waveform")}
+                      className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 font-bold transition-all ${
+                        dsoTab === "waveform"
+                          ? "bg-cyan-600 text-white shadow-sm shadow-cyan-500/30"
+                          : "text-slate-400 hover:text-white"
+                      }`}
+                    >
+                      <Waves className="h-3.5 w-3.5" />
+                      <span>Waveform</span>
+                    </button>
+                    <button
+                      onClick={() => setDsoTab("fft")}
+                      className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 font-bold transition-all ${
+                        dsoTab === "fft"
+                          ? "bg-cyan-600 text-white shadow-sm shadow-cyan-500/30"
+                          : "text-slate-400 hover:text-white"
+                      }`}
+                    >
+                      <Activity className="h-3.5 w-3.5" />
+                      <span>Harmonics (FFT)</span>
+                    </button>
                   </div>
 
-                  {/* Clear History Button */}
-                  <button
-                    onClick={handleClearChart}
-                    className="flex items-center gap-1 rounded-lg border border-slate-800 bg-slate-950/70 px-2.5 py-1.5 text-xs text-slate-400 transition-colors hover:border-red-500/40 hover:text-red-400"
-                    title="Clear chart buffer"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                    <span className="hidden sm:inline">Clear</span>
-                  </button>
+                  {dsoTab === "waveform" && (
+                    <>
+                      {/* Window Selector */}
+                      <div className="flex items-center gap-1 rounded-lg border border-slate-800 bg-slate-950/70 p-1 text-xs">
+                        <span className="px-2 text-slate-500">Window:</span>
+                        {[15, 30, 60].map((sec) => (
+                          <button
+                            key={sec}
+                            onClick={() => setBufferSeconds(sec)}
+                            className={`rounded px-2 py-1 font-medium transition-colors ${
+                              bufferSeconds === sec
+                                ? "bg-blue-600 text-white"
+                                : "text-slate-400 hover:text-white"
+                            }`}
+                          >
+                            {sec}s
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* Clear History Button */}
+                      <button
+                        onClick={handleClearChart}
+                        className="flex items-center gap-1 rounded-lg border border-slate-800 bg-slate-950/70 px-2.5 py-1.5 text-xs text-slate-400 transition-colors hover:border-red-500/40 hover:text-red-400"
+                        title="Clear chart buffer"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                        <span className="hidden sm:inline">Clear</span>
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
 
-              {/* Trace Filters */}
-              <div className="mb-4 flex flex-wrap items-center gap-2 border-b border-slate-800 pb-3">
-                <span className="text-xs font-semibold text-slate-400">Traces:</span>
+              {dsoTab === "fft" ? (
+                <div className="mt-2">
+                  <HarmonicAnalyzer
+                    totalCurrent={totalCurrent}
+                    totalPower={totalPower}
+                    activeAppliance={mlInference.predicted_appliance || "Standby"}
+                  />
+                </div>
+              ) : (
+                <>
+                  {/* Trace Filters */}
+                  <div className="mb-4 flex flex-wrap items-center gap-2 border-b border-slate-800 pb-3">
+                    <span className="text-xs font-semibold text-slate-400">Traces:</span>
 
-                {/* Total Line Toggle */}
-                <button
-                  onClick={() => toggleLineVisibility("total")}
-                  className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium transition-all ${
-                    !hiddenLines["total"]
-                      ? "bg-blue-600/20 text-blue-300 ring-1 ring-blue-500/40"
-                      : "bg-slate-800/60 text-slate-500 line-through"
-                  }`}
-                >
-                  {!hiddenLines["total"] ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
-                  Total Current
-                </button>
-
-                {/* Individual Appliance Line Toggles */}
-                {applianceKeys.map((name) => {
-                  const meta = getApplianceMeta(name);
-                  const isHidden = hiddenLines[name];
-
-                  return (
+                    {/* Total Line Toggle */}
                     <button
-                      key={`toggle-${name}`}
-                      onClick={() => toggleLineVisibility(name)}
+                      onClick={() => toggleLineVisibility("total")}
                       className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium transition-all ${
-                        !isHidden
-                          ? "ring-1"
+                        !hiddenLines["total"]
+                          ? "bg-blue-600/20 text-blue-300 ring-1 ring-blue-500/40"
                           : "bg-slate-800/60 text-slate-500 line-through"
                       }`}
-                      style={{
-                        backgroundColor: !isHidden ? `${meta.color}15` : undefined,
-                        color: !isHidden ? meta.color : undefined,
-                        borderColor: !isHidden ? `${meta.color}40` : undefined,
-                      }}
                     >
-                      {!isHidden ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
-                      {name}
+                      {!hiddenLines["total"] ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
+                      Total Current
                     </button>
-                  );
-                })}
-              </div>
 
-              {/* The Recharts Line Graph */}
-              <div className="h-56 w-full sm:h-80 lg:h-96">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={chartData} margin={{ top: 10, right: 10, left: -15, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" opacity={0.6} />
-                    <XAxis
-                      dataKey="time"
-                      stroke="#64748b"
-                      fontSize={11}
-                      tickLine={false}
-                      interval="preserveStartEnd"
-                    />
-                    <YAxis
-                      stroke="#64748b"
-                      fontSize={11}
-                      tickLine={false}
-                      unit="A"
-                      domain={[0, "auto"]}
-                    />
-                    <Tooltip
-                      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                      content={(props: any) => (
-                        <CustomTooltip active={props.active} payload={props.payload} label={props.label} />
-                      )}
-                    />
-                    <Legend
-                      verticalAlign="top"
-                      height={36}
-                      iconType="circle"
-                      wrapperStyle={{ fontSize: "12px", paddingBottom: "10px" }}
-                    />
-
-                    {/* Total Current Line */}
-                    {!hiddenLines["total"] && (
-                      <Line
-                        type="monotone"
-                        dataKey="total"
-                        name="Total Current (RMS)"
-                        stroke="#3b82f6"
-                        strokeWidth={2.5}
-                        dot={false}
-                        activeDot={{ r: 5, fill: "#3b82f6" }}
-                        isAnimationActive={false}
-                      />
-                    )}
-
-                    {/* Individual Appliance Lines */}
+                    {/* Individual Appliance Line Toggles */}
                     {applianceKeys.map((name) => {
-                      if (hiddenLines[name]) return null;
                       const meta = getApplianceMeta(name);
+                      const isHidden = hiddenLines[name];
 
                       return (
-                        <Line
-                          key={`line-${name}`}
-                          type="monotone"
-                          dataKey={name}
-                          name={name}
-                          stroke={meta.color}
-                          strokeWidth={1.75}
-                          dot={false}
-                          strokeDasharray={name.toLowerCase().includes("fan") || name.toLowerCase().includes("fridge") ? "4 2" : undefined}
-                          activeDot={{ r: 4, fill: meta.color }}
-                          isAnimationActive={false}
-                        />
+                        <button
+                          key={`toggle-${name}`}
+                          onClick={() => toggleLineVisibility(name)}
+                          className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium transition-all ${
+                            !isHidden
+                              ? "ring-1"
+                              : "bg-slate-800/60 text-slate-500 line-through"
+                          }`}
+                          style={{
+                            backgroundColor: !isHidden ? `${meta.color}15` : undefined,
+                            color: !isHidden ? meta.color : undefined,
+                            borderColor: !isHidden ? `${meta.color}40` : undefined,
+                          }}
+                        >
+                          {!isHidden ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
+                          {name}
+                        </button>
                       );
                     })}
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
+                  </div>
+
+                  {/* The Recharts Line Graph */}
+                  <div className="h-56 w-full sm:h-80 lg:h-96">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={chartData} margin={{ top: 10, right: 10, left: -15, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" opacity={0.6} />
+                        <XAxis
+                          dataKey="time"
+                          stroke="#64748b"
+                          fontSize={11}
+                          tickLine={false}
+                          interval="preserveStartEnd"
+                        />
+                        <YAxis
+                          stroke="#64748b"
+                          fontSize={11}
+                          tickLine={false}
+                          unit="A"
+                          domain={[0, "auto"]}
+                        />
+                        <Tooltip
+                          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                          content={(props: any) => (
+                            <CustomTooltip active={props.active} payload={props.payload} label={props.label} />
+                          )}
+                        />
+                        <Legend
+                          verticalAlign="top"
+                          height={36}
+                          iconType="circle"
+                          wrapperStyle={{ fontSize: "12px", paddingBottom: "10px" }}
+                        />
+
+                        {/* Total Current Line */}
+                        {!hiddenLines["total"] && (
+                          <Line
+                            type="monotone"
+                            dataKey="total"
+                            name="Total Current (RMS)"
+                            stroke="#3b82f6"
+                            strokeWidth={2.5}
+                            dot={false}
+                            activeDot={{ r: 5, fill: "#3b82f6" }}
+                            isAnimationActive={false}
+                          />
+                        )}
+
+                        {/* Individual Appliance Lines */}
+                        {applianceKeys.map((name) => {
+                          if (hiddenLines[name]) return null;
+                          const meta = getApplianceMeta(name);
+
+                          return (
+                            <Line
+                              key={`line-${name}`}
+                              type="monotone"
+                              dataKey={name}
+                              name={name}
+                              stroke={meta.color}
+                              strokeWidth={1.75}
+                              dot={false}
+                              strokeDasharray={name.toLowerCase().includes("fan") || name.toLowerCase().includes("fridge") ? "4 2" : undefined}
+                              activeDot={{ r: 4, fill: meta.color }}
+                              isAnimationActive={false}
+                            />
+                          );
+                        })}
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                </>
+              )}
             </section>
 
             {/* Event Audit Trail Table, Print Report & CSV Export */}
@@ -2828,6 +2983,15 @@ export default function Dashboard() {
                   >
                     <Download className="h-4 w-4" />
                     <span>Export Audit CSV</span>
+                  </button>
+
+                  <button
+                    onClick={() => setIsAuditModalOpen(true)}
+                    className="flex items-center justify-center gap-2 rounded-xl border border-emerald-500/40 bg-emerald-950/40 px-3.5 py-2 text-xs font-bold text-emerald-300 shadow-sm transition-all hover:bg-emerald-900/50 hover:border-emerald-400 active:scale-95"
+                    title="Generate official ISO 50001 Certified Audit Certificate"
+                  >
+                    <ShieldCheck className="h-4 w-4 text-emerald-400" />
+                    <span>ISO 50001 Handover Report</span>
                   </button>
                 </div>
               </div>
@@ -3127,13 +3291,37 @@ export default function Dashboard() {
             <span className="font-semibold text-white">₹{(todTariff.rate_inr ?? 7.5).toFixed(2)}/u</span>
           </div>
 
+          {/* Virtual Testbench Trigger */}
+          <button
+            onClick={() => setIsTestbenchOpen(true)}
+            className={`flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-bold border transition-all ${
+              activeScenarioKey
+                ? "bg-cyan-500/20 text-cyan-300 border-cyan-400 ring-1 ring-cyan-500/40 animate-pulse shadow-[0_0_10px_rgba(6,182,212,0.3)]"
+                : "bg-slate-900 border-slate-700 text-cyan-400 hover:border-cyan-500/50 hover:text-white"
+            }`}
+            title="Open Interactive Hardware Testbench"
+          >
+            <Sliders className="h-3 w-3" />
+            <span className="hidden sm:inline">Testbench</span>
+          </button>
+
+          {/* Gridvibe Copilot Trigger */}
+          <button
+            onClick={() => setIsCopilotOpen(true)}
+            className="flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-bold bg-purple-950/80 border border-purple-500/50 text-purple-200 hover:bg-purple-900/80 hover:border-purple-400 shadow-[0_0_12px_rgba(168,85,247,0.3)]"
+            title="Open Gridvibe AI Copilot"
+          >
+            <Sparkles className="h-3 w-3 text-purple-300 animate-pulse" />
+            <span>Copilot</span>
+          </button>
+
           {/* Breaker One-Click Action */}
           <button
             onClick={() => openBreakerModal()}
             disabled={isControlling}
             className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-bold transition-all shadow-sm ${
               breakerStatus === "TRIPPED"
-                ? "bg-emerald-600 hover:bg-emerald-500 text-white shadow-[0_0_12px_rgba(16,185,129,0.4)]"
+                ? "bg-emerald-600 hover:bg-emerald-500 text-white shadow-[0_0_12px_rgba(160,185,129,0.4)]"
                 : "bg-rose-600/90 hover:bg-rose-500 text-white shadow-[0_0_12px_rgba(244,63,94,0.3)]"
             }`}
           >
@@ -3151,6 +3339,49 @@ export default function Dashboard() {
           </button>
         </div>
       </aside>
+
+      {/* Scenario Testbench Modal */}
+      <ScenarioTestbench
+        isOpen={isTestbenchOpen}
+        onClose={() => setIsTestbenchOpen(false)}
+        activeScenarioKey={activeScenarioKey}
+        onSelectScenario={handleSelectScenario}
+      />
+
+      {/* Gridvibe Copilot Drawer / Modal */}
+      <GridvibeCopilot
+        isOpen={isCopilotOpen}
+        onClose={() => setIsCopilotOpen(false)}
+        telemetryContext={{
+          voltage,
+          totalCurrent,
+          totalPower,
+          activeAppliance: mlInference.predicted_appliance || "Standby",
+          todTariffSlot: todTariff.slot || "NORMAL",
+          todTariffRate: todTariff.rate_inr || 7.50,
+          bearingFault: maintenance.bearing_fault || false,
+          healthScore: maintenance.health_score || 100,
+          gyroY: imu.gyro_y_dps || 0.0,
+          latencyUs: benchmark.inference_latency_us || 14,
+        }}
+      />
+
+      {/* ISO 50001 Energy Audit & Handover Certificate Modal */}
+      <EnergyAuditModal
+        isOpen={isAuditModalOpen}
+        onClose={() => setIsAuditModalOpen(false)}
+        auditData={{
+          energyKwh: analytics.energy_kwh ?? 0,
+          costInr: analytics.cost_inr ?? 0,
+          peakDemandKw: peakDemandKw ?? 0,
+          carbonG: analytics.carbon_g ?? 0,
+          tariffSlot: todTariff.slot ?? "NORMAL",
+          tariffRate: todTariff.rate_inr ?? 7.50,
+          appliances,
+          dutyCycles,
+          timestamp: lastUpdated || new Date().toLocaleTimeString(),
+        }}
+      />
     </div>
   );
 }
