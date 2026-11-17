@@ -13,9 +13,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "NILM Edge Telemetry & Analytics Dashboard",
+  title: "Gridvibe AI — Edge Telemetry & SCADA Dashboard",
   description:
-    "Non-Intrusive Load Monitoring (NILM) edge-to-cloud telemetry, MPU-6050 multi-sensor vibration fusion, and edge TinyML analytics.",
+    "Gridvibe AI — Non-Intrusive Load Monitoring (NILM) edge-to-cloud telemetry, MPU-6050 multi-sensor vibration fusion, and edge TinyML analytics.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

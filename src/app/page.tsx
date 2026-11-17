@@ -958,13 +958,17 @@ export default function Dashboard() {
             {/* Top Row / Branding & Title */}
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-2.5">
-                <div className="flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-xl bg-blue-600/15 text-blue-400 ring-1 ring-blue-500/30 shrink-0">
+                <div className="flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-500/20 to-blue-600/20 text-cyan-400 ring-1 ring-cyan-500/40 shrink-0 shadow-[0_0_15px_rgba(6,182,212,0.25)]">
                   <Zap className="h-4 w-4 sm:h-5 sm:w-5" />
                 </div>
                 <div>
-                  <h1 className="text-sm font-bold tracking-tight text-white sm:text-base">
-                    <span className="sm:hidden">AIoT NILM SCADA</span>
-                    <span className="hidden sm:inline">Non-Intrusive Load Monitoring (NILM) Telemetry Dashboard</span>
+                  <h1 className="text-sm font-bold tracking-tight text-white sm:text-base flex items-center gap-2">
+                    <span className="font-extrabold tracking-tight bg-gradient-to-r from-white via-cyan-200 to-blue-400 bg-clip-text text-transparent sm:text-lg">
+                      Gridvibe AI
+                    </span>
+                    <span className="hidden sm:inline text-xs text-slate-400 font-medium border-l border-slate-800 pl-2">
+                      Non-Intrusive Load Monitoring (NILM) Telemetry Dashboard
+                    </span>
                   </h1>
                   {/* Desktop Inline Badges */}
                   <div className="hidden sm:flex flex-wrap items-center gap-2 mt-1">
