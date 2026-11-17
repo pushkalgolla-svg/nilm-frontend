@@ -543,6 +543,7 @@ export default function Dashboard() {
   const [isCopilotOpen, setIsCopilotOpen] = useState(false);
   const [isAuditModalOpen, setIsAuditModalOpen] = useState(false);
   const [dsoTab, setDsoTab] = useState<"waveform" | "fft">("waveform");
+  const [engTab, setEngTab] = useState<"sld" | "dso" | "ml" | "audit">("sld");
 
   // Remote Load Shedding Confirmation Modal
   const [showTripModal, setShowTripModal] = useState<boolean>(false);
@@ -976,7 +977,7 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-[#030712] text-slate-100 antialiased selection:bg-cyan-500 selection:text-black relative overflow-x-hidden pb-32 sm:pb-36" style={{ backgroundImage: "radial-gradient(rgba(56, 189, 248, 0.08) 1px, transparent 1px)", backgroundSize: "28px 28px" }}>
+    <div className="min-h-screen bg-[#030712] text-slate-100 antialiased selection:bg-cyan-500 selection:text-black relative overflow-x-hidden pb-12 sm:pb-16" style={{ backgroundImage: "radial-gradient(rgba(56, 189, 248, 0.08) 1px, transparent 1px)", backgroundSize: "28px 28px" }}>
       {/* SCADA Industrial Motion Styles & Tabular Figures */}
       <style>{`
         @keyframes scadaFlow {
@@ -1654,7 +1655,284 @@ export default function Dashboard() {
               </div>
             </section>
 
-            {/* Real-Time Power Flow Topology (Single-Line Diagram) */}
+            {/* 3. Restrained Office Appliance Cards with Duty Cycles & Running Hours */}
+            <section>
+              <div className="mb-3 flex items-center justify-between">
+                <div>
+                  <h3 className="text-base font-bold tracking-tight text-white sm:text-lg">
+                    Office Appliances
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    Real-time status, running hours, and duty cycle of connected equipment
+                  </p>
+                </div>
+                <span className="rounded-md border border-slate-800 bg-slate-900 px-2.5 py-1 text-xs font-medium text-slate-300">
+                  {activeCount} of {applianceKeys.length} Running
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                {Object.entries(appliances).map(([name, detail]) => {
+                  const meta = getApplianceMeta(name);
+                  const IconComponent = meta.icon;
+                  const isActive = detail.state === "ON";
+                  const duty = dutyCycles[name] || { runtime_str: "0m 0s", duty_cycle_pct: 0 };
+
+                  return (
+                    <div
+                      key={`office-${name}`}
+                      className={`relative overflow-hidden rounded-xl border p-5 shadow-sm backdrop-blur-md transition-all duration-300 ${
+                        isActive
+                          ? `${meta.activeBorder} ${meta.activeShadow} ${meta.activeRing} bg-slate-900/90`
+                          : "border-slate-800 bg-slate-900/40 opacity-75"
+                      }`}
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-center gap-3">
+                          <div
+                            className={`flex h-11 w-11 items-center justify-center rounded-xl transition-colors duration-300 ${
+                              isActive ? meta.activeIconBg : "bg-slate-800/60 text-slate-500 ring-1 ring-slate-700/50"
+                            }`}
+                          >
+                            <IconComponent
+                              className={`h-5 w-5 ${
+                                isActive && meta.spinOnActive ? "animate-spin" : ""
+                              } ${isActive && meta.pulseOnActive ? "animate-pulse" : ""}`}
+                              style={{ animationDuration: meta.spinOnActive ? "3s" : "1.5s" }}
+                            />
+                          </div>
+                          <div>
+                            <h4 className="font-bold text-white text-sm sm:text-base">{name}</h4>
+                            <p className="text-xs text-slate-400">{meta.type}</p>
+                          </div>
+                        </div>
+
+                        <span
+                          className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${
+                            isActive
+                              ? "bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30"
+                              : "bg-slate-800 text-slate-400 ring-1 ring-slate-700"
+                          }`}
+                        >
+                          {isActive ? "IN USE" : "STANDBY"}
+                        </span>
+                      </div>
+
+                      {/* Cumulative Duty Cycle & Running Hours Meter */}
+                      <div className="mt-4 flex items-center justify-between rounded-lg bg-slate-950/60 p-2.5 text-xs border border-slate-800/80">
+                        <div className="flex items-center gap-1.5 text-slate-400">
+                          <Clock className="h-3.5 w-3.5 text-blue-400" />
+                          <span>Active Time:</span>
+                          <span className="font-mono font-semibold text-slate-200">{duty.runtime_str || "0m"}</span>
+                        </div>
+                        <div className="text-slate-400">
+                          <span>Duty: </span>
+                          <span className="font-mono font-bold text-blue-400">{duty.duty_cycle_pct ?? 0}%</span>
+                        </div>
+                      </div>
+
+                      <div className="mt-4 flex items-baseline justify-between border-t border-slate-800 pt-3">
+                        <div>
+                          <span className="text-[11px] uppercase tracking-wider text-slate-500">Power Draw</span>
+                          <div className="font-mono text-lg font-bold text-white">
+                            {isActive ? `${(detail.power_w ?? 0).toFixed(0)} W` : "0 W"}
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-[11px] uppercase tracking-wider text-slate-500">Run Cost</span>
+                          <div className="font-mono text-xs font-bold text-slate-300">
+                            {isActive ? `~₹${(((detail.power_w ?? 0) / 1000) * (todTariff.rate_inr ?? 7.5)).toFixed(2)}/hr` : "₹0.00"}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+
+            {/* 4. Switch to Engineering View Callout Banner */}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 rounded-xl border border-slate-800 bg-slate-900/40 p-4 sm:p-5 print:hidden">
+              <div className="flex items-center gap-3">
+                <div className="rounded-xl bg-blue-500/10 p-2.5 text-blue-400 ring-1 ring-blue-500/20">
+                  <Cpu className="h-5 w-5" />
+                </div>
+                <div>
+                  <h4 className="text-sm font-bold text-white">Facility Engineer or Lab Evaluator?</h4>
+                  <p className="text-xs text-slate-400">
+                    Switch to Engineering View for live waveforms, 3-axis accelerometer vectors, microsecond latency benchmarks, and CSV audit downloads.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setViewMode("engineering")}
+                className="flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-xs font-bold text-white shadow-sm ring-1 ring-blue-500/40 transition-all hover:bg-blue-500 active:scale-95 shrink-0"
+              >
+                <span>Switch to Engineering View</span>
+                <ArrowRight className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        ) : (
+          /* ================================================================= */
+          /* ADVANCED ENGINEERING VIEW: Restrained Industrial Precision SCADA */
+          /* ================================================================= */
+          <div className="space-y-6">
+            {/* Engineering Subsystem Tab Navigation Bar */}
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-800 pb-4">
+              <div className="flex flex-wrap items-center gap-1.5 rounded-2xl bg-slate-950 p-1 border border-slate-800 text-xs">
+                <button
+                  onClick={() => setEngTab("sld")}
+                  className={`flex items-center gap-2 rounded-xl px-3.5 py-2 font-bold transition-all ${
+                    engTab === "sld"
+                      ? "bg-cyan-600 text-white shadow-md shadow-cyan-500/25 ring-1 ring-cyan-400"
+                      : "text-slate-400 hover:text-white"
+                  }`}
+                >
+                  <GitBranch className="h-4 w-4" />
+                  <span>Power Flow & Grid (SLD)</span>
+                </button>
+                <button
+                  onClick={() => setEngTab("dso")}
+                  className={`flex items-center gap-2 rounded-xl px-3.5 py-2 font-bold transition-all ${
+                    engTab === "dso"
+                      ? "bg-cyan-600 text-white shadow-md shadow-cyan-500/25 ring-1 ring-cyan-400"
+                      : "text-slate-400 hover:text-white"
+                  }`}
+                >
+                  <Waves className="h-4 w-4" />
+                  <span>Waveforms & Harmonics (DSO)</span>
+                </button>
+                <button
+                  onClick={() => setEngTab("ml")}
+                  className={`flex items-center gap-2 rounded-xl px-3.5 py-2 font-bold transition-all ${
+                    engTab === "ml"
+                      ? "bg-cyan-600 text-white shadow-md shadow-cyan-500/25 ring-1 ring-cyan-400"
+                      : "text-slate-400 hover:text-white"
+                  }`}
+                >
+                  <Cpu className="h-4 w-4" />
+                  <span>TinyML & Diagnostics (XAI)</span>
+                </button>
+                <button
+                  onClick={() => setEngTab("audit")}
+                  className={`flex items-center gap-2 rounded-xl px-3.5 py-2 font-bold transition-all ${
+                    engTab === "audit"
+                      ? "bg-cyan-600 text-white shadow-md shadow-cyan-500/25 ring-1 ring-cyan-400"
+                      : "text-slate-400 hover:text-white"
+                  }`}
+                >
+                  <FileSpreadsheet className="h-4 w-4" />
+                  <span>Audit & Compliance</span>
+                </button>
+              </div>
+
+              {/* Quick Telemetry Vector Badges */}
+              <div className="hidden lg:flex items-center gap-3 text-xs font-mono text-slate-400 bg-slate-900/80 px-3.5 py-1.5 rounded-xl border border-slate-800">
+                <div>V: <span className="text-white font-bold">{voltage.toFixed(1)}V</span></div>
+                <div>I: <span className="text-cyan-400 font-bold">{totalCurrent.toFixed(2)}A</span></div>
+                <div>P: <span className="text-emerald-400 font-bold">{totalPower.toFixed(1)}W</span></div>
+                <div>Contactor: <span className={breakerStatus === "TRIPPED" ? "text-rose-400 font-bold" : "text-emerald-400 font-bold"}>{breakerStatus}</span></div>
+              </div>
+            </div>
+
+            {/* Subsystem 1: Power Flow Topology & Single-Line Diagram */}
+            {engTab === "sld" && (
+              <div className="space-y-6 animate-in fade-in duration-150">
+                {/* Live Metric Primary KPI Cluster (Aerospace Instruments) */}
+            <section className="relative overflow-hidden rounded-3xl border border-slate-800/90 bg-gradient-to-b from-slate-900/95 via-slate-950/98 to-slate-950 p-5 sm:p-7 shadow-2xl backdrop-blur-2xl ring-1 ring-white/10">
+              <div className="absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-transparent via-cyan-500/60 to-transparent" />
+
+              <div className="flex flex-col lg:flex-row items-stretch justify-between gap-6">
+                {/* Diagnostic Vectors Header */}
+                <div className="flex-1 flex flex-col justify-between space-y-3">
+                  <div>
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="rounded-full bg-cyan-500/20 px-3 py-1 text-xs font-mono font-bold uppercase text-cyan-300 ring-1 ring-cyan-500/40">
+                        DIAGNOSTIC TELEMETRY SUITE
+                      </span>
+                      <span className="text-[11px] font-mono text-slate-500">
+                        Xtensa Dual-Core 240MHz (ESP32)
+                      </span>
+                    </div>
+                    <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-white">
+                      Raw Electrical Waveforms & Multi-Sensor Kinetic Vector Stream
+                    </h2>
+                    <p className="mt-1 text-xs text-slate-400 leading-relaxed">
+                      1000 Hz continuous analog RMS sampling on ADC1_CH6 (GPIO 34). I2C IMU rotational angular velocity (MPU-6050) fused at the edge to eliminate ceiling fan vs solid-state charger ambiguity.
+                    </p>
+                  </div>
+
+                  {/* Benchmark & Apparent Power Badges */}
+                  <div className="flex flex-wrap items-center gap-3 pt-2">
+                    <div className="rounded-xl border border-slate-800 bg-slate-950/80 px-3.5 py-2 flex items-center gap-2 shadow-inner">
+                      <span className="text-[10px] font-mono uppercase text-slate-500 font-bold">Apparent Power:</span>
+                      <span className="font-mono tabular-nums text-sm font-bold text-white">{(voltage * totalCurrent).toFixed(0)} VA</span>
+                    </div>
+                    <div className="rounded-xl border border-slate-800 bg-slate-950/80 px-3.5 py-2 flex items-center gap-2 shadow-inner">
+                      <span className="text-[10px] font-mono uppercase text-slate-500 font-bold">Power Factor (cos φ):</span>
+                      <span className="font-mono tabular-nums text-sm font-bold text-cyan-400">
+                        {(voltage * totalCurrent) > 0 ? Math.min(1.0, totalPower / (voltage * totalCurrent)).toFixed(2) : "1.00"}
+                      </span>
+                    </div>
+                    <div className="rounded-xl border border-slate-800 bg-slate-950/80 px-3.5 py-2 flex items-center gap-2 shadow-inner">
+                      <span className="text-[10px] font-mono uppercase text-slate-500 font-bold">TinyML Latency:</span>
+                      <span className="font-mono tabular-nums text-sm font-bold text-emerald-400">
+                        {benchmark.inference_latency_us ?? 14} µs (0.014 ms)
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Right Flight Column: Aerospace 3-Gauge Instrument Cluster + Skeuomorphic Contactor */}
+                <div className="flex flex-col sm:flex-row lg:flex-col xl:flex-row items-center gap-3 shrink-0">
+                  <div className="grid grid-cols-3 gap-2 w-full sm:w-auto">
+                    <RadialGauge
+                      value={voltage}
+                      min={0}
+                      max={300}
+                      unit="VOLTS"
+                      label="Mains V"
+                      nominal="50 Hz"
+                      color="#22d3ee"
+                      glowColor="rgba(34, 211, 238, 0.4)"
+                      size={105}
+                    />
+                    <RadialGauge
+                      value={totalCurrent}
+                      min={0}
+                      max={10}
+                      unit="AMPS"
+                      label="Line I"
+                      nominal="ADC1 GPIO 34"
+                      color={breakerStatus === "TRIPPED" ? "#f43f5e" : totalCurrent > 2.5 ? "#f59e0b" : "#38bdf8"}
+                      glowColor={breakerStatus === "TRIPPED" ? "rgba(244, 63, 94, 0.4)" : totalCurrent > 2.5 ? "rgba(245, 158, 11, 0.4)" : "rgba(56, 189, 248, 0.4)"}
+                      size={105}
+                    />
+                    <RadialGauge
+                      value={totalPower}
+                      min={0}
+                      max={3000}
+                      unit="WATTS"
+                      label="Active P"
+                      nominal="Real Power"
+                      color={breakerStatus === "TRIPPED" ? "#f43f5e" : totalPower > 1500 ? "#f59e0b" : "#34d399"}
+                      glowColor={breakerStatus === "TRIPPED" ? "rgba(244, 63, 94, 0.4)" : totalPower > 1500 ? "rgba(245, 158, 11, 0.4)" : "rgba(52, 211, 153, 0.4)"}
+                      size={105}
+                    />
+                  </div>
+
+                  <div className="w-full sm:w-64 lg:w-full xl:w-64">
+                    <MasterContactorSwitch
+                      status={breakerStatus}
+                      isControlling={isControlling}
+                      onToggle={() => openBreakerModal()}
+                    />
+                  </div>
+                </div>
+              </div>
+            </section>
+                {/* Real-Time Power Flow Topology (Single-Line Diagram) */}
             <section className="relative overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/60 p-4 sm:p-6 shadow-sm backdrop-blur-md">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
                 <div className="flex items-center gap-2.5">
@@ -1836,380 +2114,7 @@ export default function Dashboard() {
                 </div>
               </div>
             </section>
-
-            {/* 3. Restrained Office Appliance Cards with Duty Cycles & Running Hours */}
-            <section>
-              <div className="mb-3 flex items-center justify-between">
-                <div>
-                  <h3 className="text-base font-bold tracking-tight text-white sm:text-lg">
-                    Office Appliances
-                  </h3>
-                  <p className="text-xs text-slate-400">
-                    Real-time status, running hours, and duty cycle of connected equipment
-                  </p>
-                </div>
-                <span className="rounded-md border border-slate-800 bg-slate-900 px-2.5 py-1 text-xs font-medium text-slate-300">
-                  {activeCount} of {applianceKeys.length} Running
-                </span>
-              </div>
-
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                {Object.entries(appliances).map(([name, detail]) => {
-                  const meta = getApplianceMeta(name);
-                  const IconComponent = meta.icon;
-                  const isActive = detail.state === "ON";
-                  const duty = dutyCycles[name] || { runtime_str: "0m 0s", duty_cycle_pct: 0 };
-
-                  return (
-                    <div
-                      key={`office-${name}`}
-                      className={`relative overflow-hidden rounded-xl border p-5 shadow-sm backdrop-blur-md transition-all duration-300 ${
-                        isActive
-                          ? `${meta.activeBorder} ${meta.activeShadow} ${meta.activeRing} bg-slate-900/90`
-                          : "border-slate-800 bg-slate-900/40 opacity-75"
-                      }`}
-                    >
-                      <div className="flex items-start justify-between">
-                        <div className="flex items-center gap-3">
-                          <div
-                            className={`flex h-11 w-11 items-center justify-center rounded-xl transition-colors duration-300 ${
-                              isActive ? meta.activeIconBg : "bg-slate-800/60 text-slate-500 ring-1 ring-slate-700/50"
-                            }`}
-                          >
-                            <IconComponent
-                              className={`h-5 w-5 ${
-                                isActive && meta.spinOnActive ? "animate-spin" : ""
-                              } ${isActive && meta.pulseOnActive ? "animate-pulse" : ""}`}
-                              style={{ animationDuration: meta.spinOnActive ? "3s" : "1.5s" }}
-                            />
-                          </div>
-                          <div>
-                            <h4 className="font-bold text-white text-sm sm:text-base">{name}</h4>
-                            <p className="text-xs text-slate-400">{meta.type}</p>
-                          </div>
-                        </div>
-
-                        <span
-                          className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${
-                            isActive
-                              ? "bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30"
-                              : "bg-slate-800 text-slate-400 ring-1 ring-slate-700"
-                          }`}
-                        >
-                          {isActive ? "IN USE" : "STANDBY"}
-                        </span>
-                      </div>
-
-                      {/* Cumulative Duty Cycle & Running Hours Meter */}
-                      <div className="mt-4 flex items-center justify-between rounded-lg bg-slate-950/60 p-2.5 text-xs border border-slate-800/80">
-                        <div className="flex items-center gap-1.5 text-slate-400">
-                          <Clock className="h-3.5 w-3.5 text-blue-400" />
-                          <span>Active Time:</span>
-                          <span className="font-mono font-semibold text-slate-200">{duty.runtime_str || "0m"}</span>
-                        </div>
-                        <div className="text-slate-400">
-                          <span>Duty: </span>
-                          <span className="font-mono font-bold text-blue-400">{duty.duty_cycle_pct ?? 0}%</span>
-                        </div>
-                      </div>
-
-                      <div className="mt-4 flex items-baseline justify-between border-t border-slate-800 pt-3">
-                        <div>
-                          <span className="text-[11px] uppercase tracking-wider text-slate-500">Power Draw</span>
-                          <div className="font-mono text-lg font-bold text-white">
-                            {isActive ? `${(detail.power_w ?? 0).toFixed(0)} W` : "0 W"}
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <span className="text-[11px] uppercase tracking-wider text-slate-500">Run Cost</span>
-                          <div className="font-mono text-xs font-bold text-slate-300">
-                            {isActive ? `~₹${(((detail.power_w ?? 0) / 1000) * (todTariff.rate_inr ?? 7.5)).toFixed(2)}/hr` : "₹0.00"}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </section>
-
-            {/* 4. Switch to Engineering View Callout Banner */}
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 rounded-xl border border-slate-800 bg-slate-900/40 p-4 sm:p-5 print:hidden">
-              <div className="flex items-center gap-3">
-                <div className="rounded-xl bg-blue-500/10 p-2.5 text-blue-400 ring-1 ring-blue-500/20">
-                  <Cpu className="h-5 w-5" />
-                </div>
-                <div>
-                  <h4 className="text-sm font-bold text-white">Facility Engineer or Lab Evaluator?</h4>
-                  <p className="text-xs text-slate-400">
-                    Switch to Engineering View for live waveforms, 3-axis accelerometer vectors, microsecond latency benchmarks, and CSV audit downloads.
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={() => setViewMode("engineering")}
-                className="flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-xs font-bold text-white shadow-sm ring-1 ring-blue-500/40 transition-all hover:bg-blue-500 active:scale-95 shrink-0"
-              >
-                <span>Switch to Engineering View</span>
-                <ArrowRight className="h-4 w-4" />
-              </button>
-            </div>
-          </div>
-        ) : (
-          /* ================================================================= */
-          /* ADVANCED ENGINEERING VIEW: Restrained Industrial Precision SCADA */
-          /* ================================================================= */
-          <div className="space-y-6">
-            {/* Live Metric Primary KPI Cluster (Aerospace Instruments) */}
-            <section className="relative overflow-hidden rounded-3xl border border-slate-800/90 bg-gradient-to-b from-slate-900/95 via-slate-950/98 to-slate-950 p-5 sm:p-7 shadow-2xl backdrop-blur-2xl ring-1 ring-white/10">
-              <div className="absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-transparent via-cyan-500/60 to-transparent" />
-
-              <div className="flex flex-col lg:flex-row items-stretch justify-between gap-6">
-                {/* Diagnostic Vectors Header */}
-                <div className="flex-1 flex flex-col justify-between space-y-3">
-                  <div>
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="rounded-full bg-cyan-500/20 px-3 py-1 text-xs font-mono font-bold uppercase text-cyan-300 ring-1 ring-cyan-500/40">
-                        DIAGNOSTIC TELEMETRY SUITE
-                      </span>
-                      <span className="text-[11px] font-mono text-slate-500">
-                        Xtensa Dual-Core 240MHz (ESP32)
-                      </span>
-                    </div>
-                    <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-white">
-                      Raw Electrical Waveforms & Multi-Sensor Kinetic Vector Stream
-                    </h2>
-                    <p className="mt-1 text-xs text-slate-400 leading-relaxed">
-                      1000 Hz continuous analog RMS sampling on ADC1_CH6 (GPIO 34). I2C IMU rotational angular velocity (MPU-6050) fused at the edge to eliminate ceiling fan vs solid-state charger ambiguity.
-                    </p>
-                  </div>
-
-                  {/* Benchmark & Apparent Power Badges */}
-                  <div className="flex flex-wrap items-center gap-3 pt-2">
-                    <div className="rounded-xl border border-slate-800 bg-slate-950/80 px-3.5 py-2 flex items-center gap-2 shadow-inner">
-                      <span className="text-[10px] font-mono uppercase text-slate-500 font-bold">Apparent Power:</span>
-                      <span className="font-mono tabular-nums text-sm font-bold text-white">{(voltage * totalCurrent).toFixed(0)} VA</span>
-                    </div>
-                    <div className="rounded-xl border border-slate-800 bg-slate-950/80 px-3.5 py-2 flex items-center gap-2 shadow-inner">
-                      <span className="text-[10px] font-mono uppercase text-slate-500 font-bold">Power Factor (cos φ):</span>
-                      <span className="font-mono tabular-nums text-sm font-bold text-cyan-400">
-                        {(voltage * totalCurrent) > 0 ? Math.min(1.0, totalPower / (voltage * totalCurrent)).toFixed(2) : "1.00"}
-                      </span>
-                    </div>
-                    <div className="rounded-xl border border-slate-800 bg-slate-950/80 px-3.5 py-2 flex items-center gap-2 shadow-inner">
-                      <span className="text-[10px] font-mono uppercase text-slate-500 font-bold">TinyML Latency:</span>
-                      <span className="font-mono tabular-nums text-sm font-bold text-emerald-400">
-                        {benchmark.inference_latency_us ?? 14} µs (0.014 ms)
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Right Flight Column: Aerospace 3-Gauge Instrument Cluster + Skeuomorphic Contactor */}
-                <div className="flex flex-col sm:flex-row lg:flex-col xl:flex-row items-center gap-3 shrink-0">
-                  <div className="grid grid-cols-3 gap-2 w-full sm:w-auto">
-                    <RadialGauge
-                      value={voltage}
-                      min={0}
-                      max={300}
-                      unit="VOLTS"
-                      label="Mains V"
-                      nominal="50 Hz"
-                      color="#22d3ee"
-                      glowColor="rgba(34, 211, 238, 0.4)"
-                      size={105}
-                    />
-                    <RadialGauge
-                      value={totalCurrent}
-                      min={0}
-                      max={10}
-                      unit="AMPS"
-                      label="Line I"
-                      nominal="ADC1 GPIO 34"
-                      color={breakerStatus === "TRIPPED" ? "#f43f5e" : totalCurrent > 2.5 ? "#f59e0b" : "#38bdf8"}
-                      glowColor={breakerStatus === "TRIPPED" ? "rgba(244, 63, 94, 0.4)" : totalCurrent > 2.5 ? "rgba(245, 158, 11, 0.4)" : "rgba(56, 189, 248, 0.4)"}
-                      size={105}
-                    />
-                    <RadialGauge
-                      value={totalPower}
-                      min={0}
-                      max={3000}
-                      unit="WATTS"
-                      label="Active P"
-                      nominal="Real Power"
-                      color={breakerStatus === "TRIPPED" ? "#f43f5e" : totalPower > 1500 ? "#f59e0b" : "#34d399"}
-                      glowColor={breakerStatus === "TRIPPED" ? "rgba(244, 63, 94, 0.4)" : totalPower > 1500 ? "rgba(245, 158, 11, 0.4)" : "rgba(52, 211, 153, 0.4)"}
-                      size={105}
-                    />
-                  </div>
-
-                  <div className="w-full sm:w-64 lg:w-full xl:w-64">
-                    <MasterContactorSwitch
-                      status={breakerStatus}
-                      isControlling={isControlling}
-                      onToggle={() => openBreakerModal()}
-                    />
-                  </div>
-                </div>
-              </div>
-            </section>
-
-            {/* Industrial Analytics, Cost, Carbon & Edge Latency Row */}
-            <section className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
-              {/* Real-Time Billing & Energy Consumption */}
-              <div className="relative overflow-hidden rounded-xl border border-slate-800 bg-slate-900/60 p-3.5 sm:p-5 shadow-sm">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-medium uppercase tracking-wider text-slate-400">
-                    Energy & Live Cost
-                  </span>
-                  <div className="rounded-lg bg-blue-500/10 p-2 text-blue-400 ring-1 ring-blue-500/20">
-                    <Coins className="h-5 w-5" />
-                  </div>
-                </div>
-                <div className="mt-3 flex items-baseline gap-2">
-                  <span className="font-mono tabular-nums text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
-                    ₹{(analytics.cost_inr ?? 0).toFixed(2)}
-                  </span>
-                  <span className="text-xs font-semibold text-slate-400 font-mono">
-                    ({(analytics.energy_kwh ?? 0).toFixed(4)} kWh)
-                  </span>
-                </div>
-                <p className="mt-1 text-xs text-slate-500">
-                  {todTariff.slot} Tariff: ₹{(todTariff.rate_inr ?? 7.50).toFixed(2)} / kWh
-                </p>
-                <div className="mt-3 flex items-center justify-between text-[11px] text-slate-400 border-t border-slate-800 pt-2.5">
-                  <span>Projected Monthly:</span>
-                  <span className="font-mono font-bold text-slate-200">
-                    ₹{(analytics.projected_monthly_inr ?? 0).toFixed(0)} / mo
-                  </span>
-                </div>
-              </div>
-
-              {/* Carbon Footprint / Eco Impact */}
-              <div className="relative overflow-hidden rounded-xl border border-slate-800 bg-slate-900/60 p-3.5 sm:p-5 shadow-sm">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-medium uppercase tracking-wider text-slate-400">
-                    Carbon Footprint
-                  </span>
-                  <div className="rounded-lg bg-blue-500/10 p-2 text-blue-400 ring-1 ring-blue-500/20">
-                    <Leaf className="h-5 w-5" />
-                  </div>
-                </div>
-                <div className="mt-3 flex items-baseline gap-2">
-                  <span className="font-mono tabular-nums text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
-                    {(analytics.carbon_g ?? 0).toFixed(1)}
-                  </span>
-                  <span className="text-sm font-semibold text-slate-400">g CO₂</span>
-                </div>
-                <p className="mt-1 text-xs text-slate-500">Grid factor: 0.82 kg CO₂/kWh</p>
-                <div className="mt-3 flex items-center gap-1.5 text-[11px] text-slate-400 border-t border-slate-800 pt-2.5">
-                  <span className="inline-block h-2 w-2 rounded-full bg-emerald-400" />
-                  <span className="font-medium text-slate-300">Active Carbon Audit Stream</span>
-                </div>
-              </div>
-
-              {/* Edge TinyML Latency Benchmark */}
-              <div className="relative overflow-hidden rounded-xl border border-slate-800 bg-slate-900/60 p-3.5 sm:p-5 shadow-sm">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-medium uppercase tracking-wider text-slate-400">
-                    Edge TinyML Latency
-                  </span>
-                  <div className="rounded-lg bg-blue-500/10 p-2 text-blue-400 ring-1 ring-blue-500/20">
-                    <Timer className="h-5 w-5" />
-                  </div>
-                </div>
-                <div className="mt-3 flex items-baseline gap-2">
-                  <span className="font-mono tabular-nums text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
-                    {benchmark.inference_latency_us ?? 14}
-                  </span>
-                  <span className="text-sm font-semibold text-blue-400">µs</span>
-                  <span className="text-[10px] text-slate-500">(0.014 ms)</span>
-                </div>
-                <p className="mt-1 text-xs text-slate-500">Xtensa Dual-Core 240MHz (ESP32)</p>
-                <div className="mt-3 flex items-center justify-between text-[11px] text-slate-400 border-t border-slate-800 pt-2.5">
-                  <span>Zero Cloud Dependency:</span>
-                  <span className="font-semibold text-blue-400">100% On-Chip</span>
-                </div>
-              </div>
-
-              {/* Predictive Maintenance & Anomaly Detection */}
-              <div className="relative overflow-hidden rounded-xl border border-slate-800 bg-slate-900/60 p-3.5 sm:p-5 shadow-sm">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-medium uppercase tracking-wider text-slate-400">
-                    Predictive Health
-                  </span>
-                  <div
-                    className={`rounded-lg p-2 ${
-                      maintenance.bearing_fault
-                        ? "bg-amber-500/10 text-amber-400 ring-1 ring-amber-500/30"
-                        : "bg-emerald-500/10 text-emerald-400 ring-1 ring-emerald-500/30"
-                    }`}
-                  >
-                    {maintenance.bearing_fault ? (
-                      <AlertTriangle className="h-5 w-5" />
-                    ) : (
-                      <ShieldCheck className="h-5 w-5" />
-                    )}
-                  </div>
-                </div>
-                <div className="mt-3 flex items-baseline gap-2">
-                  <span className="font-mono tabular-nums text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
-                    {maintenance.health_score ?? 100}
-                  </span>
-                  <span className="text-sm font-semibold text-slate-400">%</span>
-                </div>
-
-                {/* 10-Segment LED Vibration Health Bar */}
-                <div className="mt-2.5 flex items-center gap-1" title={`Vibration Health Index: ${maintenance.health_score ?? 100}%`}>
-                  {Array.from({ length: 10 }).map((_, idx) => {
-                    const score = maintenance.health_score ?? 100;
-                    const isLit = score >= (idx + 1) * 10 - 5;
-                    const isAlertZone = idx < 6;
-                    const isWarningZone = idx >= 6 && idx < 8;
-                    return (
-                      <div
-                        key={`eng-health-seg-${idx}`}
-                        className={`h-1.5 flex-1 rounded-sm transition-all duration-300 ${
-                          !isLit
-                            ? "bg-slate-800"
-                            : isAlertZone
-                            ? "bg-rose-500 shadow-[0_0_6px_rgba(244,63,94,0.7)]"
-                            : isWarningZone
-                            ? "bg-amber-400 shadow-[0_0_6px_rgba(251,191,36,0.7)]"
-                            : "bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.7)]"
-                        }`}
-                      />
-                    );
-                  })}
-                </div>
-                <p className="mt-1 text-xs text-slate-500 truncate" title={maintenance.anomaly_status}>
-                  {maintenance.anomaly_status ?? "Optimal Operation"}
-                </p>
-                <div className="mt-3 flex items-center gap-1.5 text-[11px] border-t border-slate-800 pt-2.5">
-                  <span
-                    className={`inline-block h-2 w-2 rounded-full ${
-                      maintenance.bearing_fault ? "bg-amber-400 animate-ping" : "bg-emerald-400"
-                    }`}
-                  />
-                  <span className={maintenance.bearing_fault ? "text-amber-300 font-semibold" : "text-emerald-300"}>
-                    {maintenance.bearing_fault ? "Mechanical Bearing Alert" : "Sensor Fusion: Verified"}
-                  </span>
-                </div>
-              </div>
-            </section>
-
-            {/* ISO 10816 Predictive Vibration Severity & Remaining Useful Life (RUL) Section */}
-            <section className="mb-6">
-              <PredictiveMaintenanceRUL
-                healthScore={maintenance.health_score ?? 100}
-                bearingFault={maintenance.bearing_fault ?? false}
-                vibrationMagnitudeG={imu.vibration_magnitude_g ?? 1.0}
-                gyroYDps={imu.gyro_y_dps ?? 0.0}
-                runtimeStr={dutyCycles["Ceiling Fan"]?.runtime_str ?? "0m"}
-              />
-            </section>
-
-            {/* Dynamic Disaggregated Appliance UI Cards with Duty Cycles */}
+                {/* Dynamic Disaggregated Appliance UI Cards with Duty Cycles */}
             <section>
               <div className="mb-3 flex items-center justify-between">
                 <div>
@@ -2325,409 +2230,13 @@ export default function Dashboard() {
                 </div>
               )}
             </section>
-
-            {/* MPU-6050 Accelerometer & Multi-Sensor Fusion Section */}
-            <section className="rounded-xl border border-slate-800 bg-slate-900/60 p-5 shadow-sm backdrop-blur-md sm:p-6">
-              <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500/10 text-blue-400 ring-1 ring-blue-500/20">
-                    <Waves className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h2 className="text-base font-bold tracking-tight text-white sm:text-lg">
-                        MPU-6050 Multi-Sensor Fusion & Vibration Telemetry
-                      </h2>
-                      <span className="rounded-md border border-slate-800 bg-slate-900 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-slate-300">
-                        I2C Node (0x68)
-                      </span>
-                    </div>
-                    <p className="text-xs text-slate-400">
-                      Fuses Electrical Current (ΔI) with Mechanical Vibration (a_xyz, ω_xyz) for on-chip TinyML classification
-                    </p>
-                  </div>
-                </div>
-
-                {/* TinyML Edge Inference Badge */}
-                <div className="flex items-center gap-2 rounded-xl border border-slate-800 bg-slate-950/70 px-3 py-2 text-xs">
-                  <Cpu className="h-4 w-4 text-blue-400" />
-                  <div className="flex flex-col">
-                    <span className="text-[10px] uppercase text-slate-500">Active Inference</span>
-                    <span className="font-semibold text-blue-300">
-                      {mlInference.predicted_appliance ?? "Standby"} ({((mlInference.confidence ?? 1.0) * 100).toFixed(0)}%)
-                    </span>
-                  </div>
-                </div>
               </div>
+            )}
 
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                {/* 3-Axis Accelerometer */}
-                <div className="rounded-xl border border-slate-800 bg-slate-950/50 p-4">
-                  <div className="mb-3 flex items-center justify-between">
-                    <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-slate-300">
-                      <Compass className="h-4 w-4 text-blue-400" />
-                      3-Axis Accelerometer
-                    </span>
-                    <span className="text-[11px] font-mono text-slate-500">Unit: g (9.81 m/s²)</span>
-                  </div>
-                  <div className="space-y-2.5 font-mono text-xs">
-                    <div>
-                      <div className="flex justify-between text-slate-400">
-                        <span>X-Axis (ax):</span>
-                        <span className="font-bold text-white">{(imu.accel_x_g ?? 0).toFixed(3)} g</span>
-                      </div>
-                      <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-slate-800">
-                        <div
-                          className="h-full bg-blue-500 transition-all duration-300"
-                          style={{ width: `${Math.min(Math.max(((imu.accel_x_g ?? 0) + 2) / 4, 0), 1) * 100}%` }}
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <div className="flex justify-between text-slate-400">
-                        <span>Y-Axis (ay):</span>
-                        <span className="font-bold text-white">{(imu.accel_y_g ?? 0).toFixed(3)} g</span>
-                      </div>
-                      <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-slate-800">
-                        <div
-                          className="h-full bg-blue-500 transition-all duration-300"
-                          style={{ width: `${Math.min(Math.max(((imu.accel_y_g ?? 0) + 2) / 4, 0), 1) * 100}%` }}
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <div className="flex justify-between text-slate-400">
-                        <span>Z-Axis (az):</span>
-                        <span className="font-bold text-white">{(imu.accel_z_g ?? 1.0).toFixed(3)} g</span>
-                      </div>
-                      <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-slate-800">
-                        <div
-                          className="h-full bg-blue-500 transition-all duration-300"
-                          style={{ width: `${Math.min(Math.max(((imu.accel_z_g ?? 1.0) + 2) / 4, 0), 1) * 100}%` }}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* 3-Axis Gyroscope */}
-                <div className="rounded-xl border border-slate-800 bg-slate-950/50 p-4">
-                  <div className="mb-3 flex items-center justify-between">
-                    <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-slate-300">
-                      <Activity className="h-4 w-4 text-blue-400" />
-                      3-Axis Gyroscope
-                    </span>
-                    <span className="text-[11px] font-mono text-slate-500">Unit: °/s (dps)</span>
-                  </div>
-                  <div className="space-y-2.5 font-mono text-xs">
-                    <div>
-                      <div className="flex justify-between text-slate-400">
-                        <span>Gyro X (gx):</span>
-                        <span className="font-bold text-white">{(imu.gyro_x_dps ?? 0).toFixed(2)} °/s</span>
-                      </div>
-                      <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-slate-800">
-                        <div
-                          className="h-full bg-blue-500 transition-all duration-300"
-                          style={{ width: `${Math.min(Math.max(((imu.gyro_x_dps ?? 0) + 250) / 500, 0), 1) * 100}%` }}
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <div className="flex justify-between text-slate-400">
-                        <span className="flex items-center gap-1">
-                          Gyro Y (gy):
-                          <span className="text-[10px] text-amber-400 font-sans" title="Ceiling Fan Trigger Threshold (<= -0.58 °/s)">
-                            ★ Fan Trigger
-                          </span>
-                        </span>
-                        <span className={`font-bold ${(imu.gyro_y_dps ?? 0) <= -0.58 ? "text-amber-400" : "text-white"}`}>
-                          {(imu.gyro_y_dps ?? 0).toFixed(2)} °/s
-                        </span>
-                      </div>
-                      <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-slate-800">
-                        <div
-                          className={`h-full transition-all duration-300 ${(imu.gyro_y_dps ?? 0) <= -0.58 ? "bg-amber-400" : "bg-blue-500"}`}
-                          style={{ width: `${Math.min(Math.max(((imu.gyro_y_dps ?? 0) + 250) / 500, 0), 1) * 100}%` }}
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <div className="flex justify-between text-slate-400">
-                        <span>Gyro Z (gz):</span>
-                        <span className="font-bold text-white">{(imu.gyro_z_dps ?? 0).toFixed(2)} °/s</span>
-                      </div>
-                      <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-slate-800">
-                        <div
-                          className="h-full bg-blue-500 transition-all duration-300"
-                          style={{ width: `${Math.min(Math.max(((imu.gyro_z_dps ?? 0) + 250) / 500, 0), 1) * 100}%` }}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Resultant Vibration & Motor Status */}
-                <div className="flex flex-col justify-between rounded-xl border border-slate-800 bg-slate-950/50 p-4">
-                  <div>
-                    <div className="mb-3 flex items-center justify-between">
-                      <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-slate-300">
-                        <Waves className="h-4 w-4 text-blue-400" />
-                        Vibration Magnitude
-                      </span>
-                      <span className="text-[11px] font-mono text-slate-500">|a| = √(ax²+ay²+az²)</span>
-                    </div>
-
-                    <div className="mt-2 flex items-baseline gap-2">
-                      <span className="font-mono text-3xl font-extrabold text-white">
-                        {(imu.vibration_magnitude_g ?? 1.0).toFixed(3)}
-                      </span>
-                      <span className="text-sm font-semibold text-blue-400">g</span>
-                    </div>
-
-                    <div className="mt-3">
-                      <div className="text-[11px] text-slate-500 mb-1">Mechanical Oscillation State:</div>
-                      <div
-                        className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ${
-                          (imu.gyro_y_dps ?? 0) <= -0.58 || Math.abs((imu.vibration_magnitude_g ?? 1.0) - 1.0) > 0.08
-                            ? "bg-amber-500/15 text-amber-300 ring-amber-500/30"
-                            : "bg-slate-800 text-slate-300 ring-slate-700"
-                        }`}
-                      >
-                        <span
-                          className={`h-2 w-2 rounded-full ${
-                            (imu.gyro_y_dps ?? 0) <= -0.58 || Math.abs((imu.vibration_magnitude_g ?? 1.0) - 1.0) > 0.08
-                              ? "animate-ping bg-amber-400"
-                              : "bg-emerald-400"
-                          }`}
-                        />
-                        {(imu.gyro_y_dps ?? 0) <= -0.58
-                          ? "Ceiling Fan Motor Oscillation"
-                          : Math.abs((imu.vibration_magnitude_g ?? 1.0) - 1.0) > 0.08
-                          ? "High Mechanical Vibration"
-                          : "Low Noise / Static Platform"}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="mt-4 border-t border-slate-800 pt-3 text-[11px] text-slate-400">
-                    <span className="text-slate-300 font-medium">Why IMU fusion matters:</span> Allows TinyML to distinguish between inductive motorized loads (Ceiling Fan) and purely electronic loads (Fast Charger) at matching current draws.
-                  </div>
-                </div>
-              </div>
-            </section>
-
-            {/* Explainable AI (XAI) Decision Tree Inspector (Google Stitch / M3 Style) */}
-            <section className="rounded-xl border border-slate-800 bg-slate-900/60 p-5 shadow-sm backdrop-blur-md sm:p-6">
-              <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500/10 text-blue-400 ring-1 ring-blue-500/20">
-                    <GitBranch className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h2 className="text-base font-bold tracking-tight text-white sm:text-lg">
-                        Explainable AI (XAI) — On-Chip Decision Tree Trace
-                      </h2>
-                      <span className="rounded-md border border-slate-800 bg-slate-900 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-blue-300">
-                        {benchmark.inference_latency_us ?? 14} µs Latency
-                      </span>
-                    </div>
-                    <p className="text-xs text-slate-400">
-                      Live execution path of on-device C decision tree (<code className="text-blue-300 font-mono">inference.h</code>). Zero dynamic heap, 100% deterministic on ESP32.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2 text-xs font-mono text-slate-400">
-                  <span className="rounded-full bg-slate-800/80 px-2.5 py-1 text-[11px] text-slate-300 border border-slate-700/60">
-                    Model: {mlInference.model || "TinyML Tree"}
-                  </span>
-                </div>
-              </div>
-
-              {/* Dynamic Tree Traversal Canvas */}
-              <div className="rounded-xl border border-slate-800/80 bg-slate-950/70 p-4 sm:p-5 overflow-x-auto">
-                <div className="min-w-[700px] space-y-4">
-                  {/* Live Input Feature Vectors */}
-                  <div className="flex items-center justify-between p-3 rounded-lg bg-slate-900/80 border border-slate-800 text-xs font-mono">
-                    <div className="flex items-center gap-2">
-                      <span className="text-slate-500 font-semibold uppercase text-[10px]">Active Feature Vector:</span>
-                      <span className="text-blue-300">ΔI: <strong className="text-white">{(totalCurrent > 0.1 ? (events[0]?.delta_i_a || totalCurrent) : 0.0).toFixed(2)} A</strong></span>
-                      <span className="text-slate-600">|</span>
-                      <span className="text-blue-300">Gyro ω_y: <strong className="text-white">{(imu.gyro_y_dps ?? 0.0).toFixed(2)} °/s</strong></span>
-                      <span className="text-slate-600">|</span>
-                      <span className="text-blue-300">|a| Mag: <strong className="text-white">{(imu.vibration_magnitude_g ?? 1.0).toFixed(2)} g</strong></span>
-                    </div>
-                    <div className="text-[11px] text-slate-400">
-                      Predicted: <strong className="text-emerald-400 font-bold">{mlInference.predicted_appliance ?? "Standby"}</strong>
-                    </div>
-                  </div>
-
-                  {/* 3-Stage Connected Explainable AI Flow */}
-                  <div className="grid grid-cols-1 md:grid-cols-11 gap-2 items-center">
-                    {/* Node 1: Standby Gate */}
-                    {(() => {
-                      const curDelta = totalCurrent > 0.1 ? (events[0]?.delta_i_a || totalCurrent) : 0.0;
-                      const isStandbyBranch = curDelta <= 0.1125;
-                      return (
-                        <div className={`col-span-1 md:col-span-3 p-3.5 rounded-xl border transition-all shadow-sm ${
-                          isStandbyBranch
-                            ? "border-emerald-500/70 bg-emerald-950/25 ring-2 ring-emerald-500/40 shadow-[0_0_12px_rgba(16,185,129,0.2)]"
-                            : "border-slate-800 bg-slate-900/40 opacity-70"
-                        }`}>
-                          <div className="flex items-center justify-between text-[11px] mb-2 font-mono">
-                            <span className="text-slate-500 font-semibold">STAGE 1</span>
-                            <span className={isStandbyBranch ? "text-emerald-400 font-bold" : "text-slate-400"}>
-                              {isStandbyBranch ? "TERMINAL (LEAF)" : "BYPASS ➔"}
-                            </span>
-                          </div>
-                          <h4 className="text-xs font-bold text-white mb-1">Quiescent Gate</h4>
-                          <p className="text-[11px] font-mono text-slate-400 mb-2">f[1] ≤ 0.1125 A</p>
-                          <div className="text-[10px] rounded bg-slate-950/80 p-2 border border-slate-800/80 font-mono tabular-nums space-y-1">
-                            <div>Input: {curDelta.toFixed(3)} A</div>
-                            <div className={isStandbyBranch ? "text-emerald-300 font-bold" : "text-slate-500"}>
-                              Result: {isStandbyBranch ? "TRUE ➔ Standby(3)" : "FALSE ➔ Test Stage 2"}
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })()}
-
-                    {/* Connector Bridge 1 -> 2 */}
-                    {(() => {
-                      const curDelta = totalCurrent > 0.1 ? (events[0]?.delta_i_a || totalCurrent) : 0.0;
-                      const isBypassedToStage2 = curDelta > 0.1125;
-                      return (
-                        <div className="col-span-1 hidden md:flex flex-col items-center justify-center gap-1 py-2">
-                          <span className={`text-[9px] font-mono font-bold uppercase ${isBypassedToStage2 ? "text-blue-400" : "text-slate-600"}`}>
-                            {isBypassedToStage2 ? "ACTIVE" : "OFF"}
-                          </span>
-                          <div className={`p-1.5 rounded-full transition-all ${
-                            isBypassedToStage2
-                              ? "bg-blue-500/20 text-blue-400 ring-1 ring-blue-500/50 animate-pulse shadow-[0_0_8px_rgba(59,130,246,0.4)]"
-                              : "text-slate-700 bg-slate-900 border border-slate-800"
-                          }`}>
-                            <ChevronRight className="h-4 w-4" />
-                          </div>
-                          <span className="text-[8px] font-mono text-slate-500 tabular-nums">&gt;0.11A</span>
-                        </div>
-                      );
-                    })()}
-
-                    {/* Node 2: Thermal Split */}
-                    {(() => {
-                      const curDelta = totalCurrent > 0.1 ? (events[0]?.delta_i_a || totalCurrent) : 0.0;
-                      const isStandby = curDelta <= 0.1125;
-                      const isIronBranch = !isStandby && curDelta > 2.7525;
-                      const isSubtree = !isStandby && curDelta <= 2.7525;
-
-                      return (
-                        <div className={`col-span-1 md:col-span-3 p-3.5 rounded-xl border transition-all shadow-sm ${
-                          isIronBranch
-                            ? "border-amber-500/70 bg-amber-950/25 ring-2 ring-amber-500/40 shadow-[0_0_12px_rgba(245,158,11,0.2)]"
-                            : isSubtree
-                            ? "border-blue-500/60 bg-blue-950/20 ring-1 ring-blue-500/40"
-                            : "border-slate-800 bg-slate-900/40 opacity-50"
-                        }`}>
-                          <div className="flex items-center justify-between text-[11px] mb-2 font-mono">
-                            <span className="text-slate-500 font-semibold">STAGE 2</span>
-                            <span className={isIronBranch ? "text-amber-400 font-bold" : isSubtree ? "text-blue-400 font-bold" : "text-slate-400"}>
-                              {isIronBranch ? "IRON TERMINAL" : isSubtree ? "SUBTREE ➔" : "IDLE"}
-                            </span>
-                          </div>
-                          <h4 className="text-xs font-bold text-white mb-1">Thermal Load Split</h4>
-                          <p className="text-[11px] font-mono text-slate-400 mb-2">f[1] ≤ 2.7525 A</p>
-                          <div className="text-[10px] rounded bg-slate-950/80 p-2 border border-slate-800/80 font-mono tabular-nums space-y-1">
-                            <div>Input: {curDelta.toFixed(3)} A</div>
-                            <div className={isIronBranch ? "text-amber-300 font-bold" : isSubtree ? "text-blue-300 font-semibold" : "text-slate-500"}>
-                              Result: {isIronBranch ? "FALSE ➔ Electric Iron(1)" : isSubtree ? "TRUE ➔ Test Stage 3" : "--"}
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })()}
-
-                    {/* Connector Bridge 2 -> 3 */}
-                    {(() => {
-                      const curDelta = totalCurrent > 0.1 ? (events[0]?.delta_i_a || totalCurrent) : 0.0;
-                      const isStandby = curDelta <= 0.1125;
-                      const isSubtree = !isStandby && curDelta <= 2.7525;
-                      return (
-                        <div className="col-span-1 hidden md:flex flex-col items-center justify-center gap-1 py-2">
-                          <span className={`text-[9px] font-mono font-bold uppercase ${isSubtree ? "text-sky-400" : "text-slate-600"}`}>
-                            {isSubtree ? "FUSION" : "OFF"}
-                          </span>
-                          <div className={`p-1.5 rounded-full transition-all ${
-                            isSubtree
-                              ? "bg-sky-500/20 text-sky-400 ring-1 ring-sky-500/50 animate-pulse shadow-[0_0_8px_rgba(56,189,248,0.4)]"
-                              : "text-slate-700 bg-slate-900 border border-slate-800"
-                          }`}>
-                            <ChevronRight className="h-4 w-4" />
-                          </div>
-                          <span className="text-[8px] font-mono text-slate-500">Kinetic</span>
-                        </div>
-                      );
-                    })()}
-
-                    {/* Node 3: Kinetic Gyro Fusion */}
-                    {(() => {
-                      const curDelta = totalCurrent > 0.1 ? (events[0]?.delta_i_a || totalCurrent) : 0.0;
-                      const curGyroY = imu.gyro_y_dps ?? 0.0;
-                      const isStandby = curDelta <= 0.1125;
-                      const isSubtree = !isStandby && curDelta <= 2.7525;
-                      const isFan = isSubtree && curGyroY <= -0.5850;
-                      const isCharger = isSubtree && curGyroY > -0.5850;
-
-                      return (
-                        <div className={`col-span-1 md:col-span-3 p-3.5 rounded-xl border transition-all shadow-sm ${
-                          isFan
-                            ? "border-sky-500/70 bg-sky-950/25 ring-2 ring-sky-500/40 shadow-[0_0_12px_rgba(56,189,248,0.25)]"
-                            : isCharger
-                            ? "border-indigo-400/70 bg-indigo-950/25 ring-2 ring-indigo-400/40 shadow-[0_0_12px_rgba(129,140,248,0.25)]"
-                            : "border-slate-800 bg-slate-900/40 opacity-50"
-                        }`}>
-                          <div className="flex items-center justify-between text-[11px] mb-2 font-mono">
-                            <span className="text-slate-500 font-semibold">STAGE 3 (FUSION)</span>
-                            <span className={isFan ? "text-sky-400 font-bold" : isCharger ? "text-indigo-300 font-bold" : "text-slate-400"}>
-                              {isFan ? "MOTOR FUSION" : isCharger ? "SMPS FUSION" : "IDLE"}
-                            </span>
-                          </div>
-                          <h4 className="text-xs font-bold text-white mb-1">IMU Gyro-Y Split</h4>
-                          <p className="text-[11px] font-mono text-slate-400 mb-2">f[6] ≤ -0.5850 °/s</p>
-                          <div className="text-[10px] rounded bg-slate-950/80 p-2 border border-slate-800/80 font-mono tabular-nums space-y-1">
-                            <div>Input: {curGyroY.toFixed(3)} °/s</div>
-                            <div className={isFan ? "text-sky-300 font-bold" : isCharger ? "text-indigo-200 font-bold" : "text-slate-500"}>
-                              Result: {isFan ? "TRUE ➔ Ceiling Fan(0)" : isCharger ? "FALSE ➔ Fast Charger(2)" : "--"}
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })()}
-                  </div>
-
-                  {/* Explainable AI Verification Summary Box */}
-                  <div className="flex items-center gap-3 p-3 rounded-lg border border-slate-800 bg-slate-900/60 text-xs">
-                    <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
-                    <p className="text-slate-300">
-                      <strong className="text-white">Why Multi-Sensor Disambiguation Succeeded:</strong>{" "}
-                      {appliances["Electric Iron"]?.state === "ON"
-                        ? "Current jump (ΔI > 2.75A) unambiguously identified high-wattage resistive heating without needing vibration cues."
-                        : appliances["Ceiling Fan"]?.state === "ON"
-                        ? "Electrical current overlap with Fast Charger (~0.2-0.4A) was resolved deterministically by detecting motor kinetic rotation (ω_y ≤ -0.585 °/s)."
-                        : appliances["Fast Charger"]?.state === "ON"
-                        ? "Low current jump (~0.24A) combined with static gyro (ω_y > -0.585 °/s) correctly isolated electronic adapter from motor loads."
-                        : "System is in quiescent standby state (ΔI ≤ 0.1125A), conserving edge computation cycles."}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </section>
-
-            {/* Live Recharts Line Graph Section */}
+            {/* Subsystem 2: Waveforms & Harmonic FFT Spectrum */}
+            {engTab === "dso" && (
+              <div className="space-y-6 animate-in fade-in duration-150">
+                {/* Live Recharts Line Graph Section */}
             <section className="rounded-xl border border-slate-800 bg-slate-900/60 p-5 shadow-sm backdrop-blur-md sm:p-6 print:hidden">
               <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
@@ -2943,8 +2452,571 @@ export default function Dashboard() {
                 </>
               )}
             </section>
+              </div>
+            )}
 
-            {/* Event Audit Trail Table, Print Report & CSV Export */}
+            {/* Subsystem 3: Edge TinyML & Machine Health Diagnostics */}
+            {engTab === "ml" && (
+              <div className="space-y-6 animate-in fade-in duration-150">
+                {/* Industrial Analytics, Cost, Carbon & Edge Latency Row */}
+            <section className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+              {/* Real-Time Billing & Energy Consumption */}
+              <div className="relative overflow-hidden rounded-xl border border-slate-800 bg-slate-900/60 p-3.5 sm:p-5 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-medium uppercase tracking-wider text-slate-400">
+                    Energy & Live Cost
+                  </span>
+                  <div className="rounded-lg bg-blue-500/10 p-2 text-blue-400 ring-1 ring-blue-500/20">
+                    <Coins className="h-5 w-5" />
+                  </div>
+                </div>
+                <div className="mt-3 flex items-baseline gap-2">
+                  <span className="font-mono tabular-nums text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
+                    ₹{(analytics.cost_inr ?? 0).toFixed(2)}
+                  </span>
+                  <span className="text-xs font-semibold text-slate-400 font-mono">
+                    ({(analytics.energy_kwh ?? 0).toFixed(4)} kWh)
+                  </span>
+                </div>
+                <p className="mt-1 text-xs text-slate-500">
+                  {todTariff.slot} Tariff: ₹{(todTariff.rate_inr ?? 7.50).toFixed(2)} / kWh
+                </p>
+                <div className="mt-3 flex items-center justify-between text-[11px] text-slate-400 border-t border-slate-800 pt-2.5">
+                  <span>Projected Monthly:</span>
+                  <span className="font-mono font-bold text-slate-200">
+                    ₹{(analytics.projected_monthly_inr ?? 0).toFixed(0)} / mo
+                  </span>
+                </div>
+              </div>
+
+              {/* Carbon Footprint / Eco Impact */}
+              <div className="relative overflow-hidden rounded-xl border border-slate-800 bg-slate-900/60 p-3.5 sm:p-5 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-medium uppercase tracking-wider text-slate-400">
+                    Carbon Footprint
+                  </span>
+                  <div className="rounded-lg bg-blue-500/10 p-2 text-blue-400 ring-1 ring-blue-500/20">
+                    <Leaf className="h-5 w-5" />
+                  </div>
+                </div>
+                <div className="mt-3 flex items-baseline gap-2">
+                  <span className="font-mono tabular-nums text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
+                    {(analytics.carbon_g ?? 0).toFixed(1)}
+                  </span>
+                  <span className="text-sm font-semibold text-slate-400">g CO₂</span>
+                </div>
+                <p className="mt-1 text-xs text-slate-500">Grid factor: 0.82 kg CO₂/kWh</p>
+                <div className="mt-3 flex items-center gap-1.5 text-[11px] text-slate-400 border-t border-slate-800 pt-2.5">
+                  <span className="inline-block h-2 w-2 rounded-full bg-emerald-400" />
+                  <span className="font-medium text-slate-300">Active Carbon Audit Stream</span>
+                </div>
+              </div>
+
+              {/* Edge TinyML Latency Benchmark */}
+              <div className="relative overflow-hidden rounded-xl border border-slate-800 bg-slate-900/60 p-3.5 sm:p-5 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-medium uppercase tracking-wider text-slate-400">
+                    Edge TinyML Latency
+                  </span>
+                  <div className="rounded-lg bg-blue-500/10 p-2 text-blue-400 ring-1 ring-blue-500/20">
+                    <Timer className="h-5 w-5" />
+                  </div>
+                </div>
+                <div className="mt-3 flex items-baseline gap-2">
+                  <span className="font-mono tabular-nums text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
+                    {benchmark.inference_latency_us ?? 14}
+                  </span>
+                  <span className="text-sm font-semibold text-blue-400">µs</span>
+                  <span className="text-[10px] text-slate-500">(0.014 ms)</span>
+                </div>
+                <p className="mt-1 text-xs text-slate-500">Xtensa Dual-Core 240MHz (ESP32)</p>
+                <div className="mt-3 flex items-center justify-between text-[11px] text-slate-400 border-t border-slate-800 pt-2.5">
+                  <span>Zero Cloud Dependency:</span>
+                  <span className="font-semibold text-blue-400">100% On-Chip</span>
+                </div>
+              </div>
+
+              {/* Predictive Maintenance & Anomaly Detection */}
+              <div className="relative overflow-hidden rounded-xl border border-slate-800 bg-slate-900/60 p-3.5 sm:p-5 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-medium uppercase tracking-wider text-slate-400">
+                    Predictive Health
+                  </span>
+                  <div
+                    className={`rounded-lg p-2 ${
+                      maintenance.bearing_fault
+                        ? "bg-amber-500/10 text-amber-400 ring-1 ring-amber-500/30"
+                        : "bg-emerald-500/10 text-emerald-400 ring-1 ring-emerald-500/30"
+                    }`}
+                  >
+                    {maintenance.bearing_fault ? (
+                      <AlertTriangle className="h-5 w-5" />
+                    ) : (
+                      <ShieldCheck className="h-5 w-5" />
+                    )}
+                  </div>
+                </div>
+                <div className="mt-3 flex items-baseline gap-2">
+                  <span className="font-mono tabular-nums text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
+                    {maintenance.health_score ?? 100}
+                  </span>
+                  <span className="text-sm font-semibold text-slate-400">%</span>
+                </div>
+
+                {/* 10-Segment LED Vibration Health Bar */}
+                <div className="mt-2.5 flex items-center gap-1" title={`Vibration Health Index: ${maintenance.health_score ?? 100}%`}>
+                  {Array.from({ length: 10 }).map((_, idx) => {
+                    const score = maintenance.health_score ?? 100;
+                    const isLit = score >= (idx + 1) * 10 - 5;
+                    const isAlertZone = idx < 6;
+                    const isWarningZone = idx >= 6 && idx < 8;
+                    return (
+                      <div
+                        key={`eng-health-seg-${idx}`}
+                        className={`h-1.5 flex-1 rounded-sm transition-all duration-300 ${
+                          !isLit
+                            ? "bg-slate-800"
+                            : isAlertZone
+                            ? "bg-rose-500 shadow-[0_0_6px_rgba(244,63,94,0.7)]"
+                            : isWarningZone
+                            ? "bg-amber-400 shadow-[0_0_6px_rgba(251,191,36,0.7)]"
+                            : "bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.7)]"
+                        }`}
+                      />
+                    );
+                  })}
+                </div>
+                <p className="mt-1 text-xs text-slate-500 truncate" title={maintenance.anomaly_status}>
+                  {maintenance.anomaly_status ?? "Optimal Operation"}
+                </p>
+                <div className="mt-3 flex items-center gap-1.5 text-[11px] border-t border-slate-800 pt-2.5">
+                  <span
+                    className={`inline-block h-2 w-2 rounded-full ${
+                      maintenance.bearing_fault ? "bg-amber-400 animate-ping" : "bg-emerald-400"
+                    }`}
+                  />
+                  <span className={maintenance.bearing_fault ? "text-amber-300 font-semibold" : "text-emerald-300"}>
+                    {maintenance.bearing_fault ? "Mechanical Bearing Alert" : "Sensor Fusion: Verified"}
+                  </span>
+                </div>
+              </div>
+            </section>
+                {/* ISO 10816 Predictive Vibration Severity & Remaining Useful Life (RUL) Section */}
+            <section className="mb-6">
+              <PredictiveMaintenanceRUL
+                healthScore={maintenance.health_score ?? 100}
+                bearingFault={maintenance.bearing_fault ?? false}
+                vibrationMagnitudeG={imu.vibration_magnitude_g ?? 1.0}
+                gyroYDps={imu.gyro_y_dps ?? 0.0}
+                runtimeStr={dutyCycles["Ceiling Fan"]?.runtime_str ?? "0m"}
+              />
+            </section>
+                {/* MPU-6050 Accelerometer & Multi-Sensor Fusion Section */}
+            <section className="rounded-xl border border-slate-800 bg-slate-900/60 p-5 shadow-sm backdrop-blur-md sm:p-6">
+              <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500/10 text-blue-400 ring-1 ring-blue-500/20">
+                    <Waves className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-base font-bold tracking-tight text-white sm:text-lg">
+                        MPU-6050 Multi-Sensor Fusion & Vibration Telemetry
+                      </h2>
+                      <span className="rounded-md border border-slate-800 bg-slate-900 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-slate-300">
+                        I2C Node (0x68)
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-400">
+                      Fuses Electrical Current (ΔI) with Mechanical Vibration (a_xyz, ω_xyz) for on-chip TinyML classification
+                    </p>
+                  </div>
+                </div>
+
+                {/* TinyML Edge Inference Badge */}
+                <div className="flex items-center gap-2 rounded-xl border border-slate-800 bg-slate-950/70 px-3 py-2 text-xs">
+                  <Cpu className="h-4 w-4 text-blue-400" />
+                  <div className="flex flex-col">
+                    <span className="text-[10px] uppercase text-slate-500">Active Inference</span>
+                    <span className="font-semibold text-blue-300">
+                      {mlInference.predicted_appliance ?? "Standby"} ({((mlInference.confidence ?? 1.0) * 100).toFixed(0)}%)
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                {/* 3-Axis Accelerometer */}
+                <div className="rounded-xl border border-slate-800 bg-slate-950/50 p-4">
+                  <div className="mb-3 flex items-center justify-between">
+                    <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-slate-300">
+                      <Compass className="h-4 w-4 text-blue-400" />
+                      3-Axis Accelerometer
+                    </span>
+                    <span className="text-[11px] font-mono text-slate-500">Unit: g (9.81 m/s²)</span>
+                  </div>
+                  <div className="space-y-2.5 font-mono text-xs">
+                    <div>
+                      <div className="flex justify-between text-slate-400">
+                        <span>X-Axis (ax):</span>
+                        <span className="font-bold text-white">{(imu.accel_x_g ?? 0).toFixed(3)} g</span>
+                      </div>
+                      <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-slate-800">
+                        <div
+                          className="h-full bg-blue-500 transition-all duration-300"
+                          style={{ width: `${Math.min(Math.max(((imu.accel_x_g ?? 0) + 2) / 4, 0), 1) * 100}%` }}
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="flex justify-between text-slate-400">
+                        <span>Y-Axis (ay):</span>
+                        <span className="font-bold text-white">{(imu.accel_y_g ?? 0).toFixed(3)} g</span>
+                      </div>
+                      <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-slate-800">
+                        <div
+                          className="h-full bg-blue-500 transition-all duration-300"
+                          style={{ width: `${Math.min(Math.max(((imu.accel_y_g ?? 0) + 2) / 4, 0), 1) * 100}%` }}
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="flex justify-between text-slate-400">
+                        <span>Z-Axis (az):</span>
+                        <span className="font-bold text-white">{(imu.accel_z_g ?? 1.0).toFixed(3)} g</span>
+                      </div>
+                      <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-slate-800">
+                        <div
+                          className="h-full bg-blue-500 transition-all duration-300"
+                          style={{ width: `${Math.min(Math.max(((imu.accel_z_g ?? 1.0) + 2) / 4, 0), 1) * 100}%` }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 3-Axis Gyroscope */}
+                <div className="rounded-xl border border-slate-800 bg-slate-950/50 p-4">
+                  <div className="mb-3 flex items-center justify-between">
+                    <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-slate-300">
+                      <Activity className="h-4 w-4 text-blue-400" />
+                      3-Axis Gyroscope
+                    </span>
+                    <span className="text-[11px] font-mono text-slate-500">Unit: °/s (dps)</span>
+                  </div>
+                  <div className="space-y-2.5 font-mono text-xs">
+                    <div>
+                      <div className="flex justify-between text-slate-400">
+                        <span>Gyro X (gx):</span>
+                        <span className="font-bold text-white">{(imu.gyro_x_dps ?? 0).toFixed(2)} °/s</span>
+                      </div>
+                      <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-slate-800">
+                        <div
+                          className="h-full bg-blue-500 transition-all duration-300"
+                          style={{ width: `${Math.min(Math.max(((imu.gyro_x_dps ?? 0) + 250) / 500, 0), 1) * 100}%` }}
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="flex justify-between text-slate-400">
+                        <span className="flex items-center gap-1">
+                          Gyro Y (gy):
+                          <span className="text-[10px] text-amber-400 font-sans" title="Ceiling Fan Trigger Threshold (<= -0.58 °/s)">
+                            ★ Fan Trigger
+                          </span>
+                        </span>
+                        <span className={`font-bold ${(imu.gyro_y_dps ?? 0) <= -0.58 ? "text-amber-400" : "text-white"}`}>
+                          {(imu.gyro_y_dps ?? 0).toFixed(2)} °/s
+                        </span>
+                      </div>
+                      <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-slate-800">
+                        <div
+                          className={`h-full transition-all duration-300 ${(imu.gyro_y_dps ?? 0) <= -0.58 ? "bg-amber-400" : "bg-blue-500"}`}
+                          style={{ width: `${Math.min(Math.max(((imu.gyro_y_dps ?? 0) + 250) / 500, 0), 1) * 100}%` }}
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="flex justify-between text-slate-400">
+                        <span>Gyro Z (gz):</span>
+                        <span className="font-bold text-white">{(imu.gyro_z_dps ?? 0).toFixed(2)} °/s</span>
+                      </div>
+                      <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-slate-800">
+                        <div
+                          className="h-full bg-blue-500 transition-all duration-300"
+                          style={{ width: `${Math.min(Math.max(((imu.gyro_z_dps ?? 0) + 250) / 500, 0), 1) * 100}%` }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Resultant Vibration & Motor Status */}
+                <div className="flex flex-col justify-between rounded-xl border border-slate-800 bg-slate-950/50 p-4">
+                  <div>
+                    <div className="mb-3 flex items-center justify-between">
+                      <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-slate-300">
+                        <Waves className="h-4 w-4 text-blue-400" />
+                        Vibration Magnitude
+                      </span>
+                      <span className="text-[11px] font-mono text-slate-500">|a| = √(ax²+ay²+az²)</span>
+                    </div>
+
+                    <div className="mt-2 flex items-baseline gap-2">
+                      <span className="font-mono text-3xl font-extrabold text-white">
+                        {(imu.vibration_magnitude_g ?? 1.0).toFixed(3)}
+                      </span>
+                      <span className="text-sm font-semibold text-blue-400">g</span>
+                    </div>
+
+                    <div className="mt-3">
+                      <div className="text-[11px] text-slate-500 mb-1">Mechanical Oscillation State:</div>
+                      <div
+                        className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ${
+                          (imu.gyro_y_dps ?? 0) <= -0.58 || Math.abs((imu.vibration_magnitude_g ?? 1.0) - 1.0) > 0.08
+                            ? "bg-amber-500/15 text-amber-300 ring-amber-500/30"
+                            : "bg-slate-800 text-slate-300 ring-slate-700"
+                        }`}
+                      >
+                        <span
+                          className={`h-2 w-2 rounded-full ${
+                            (imu.gyro_y_dps ?? 0) <= -0.58 || Math.abs((imu.vibration_magnitude_g ?? 1.0) - 1.0) > 0.08
+                              ? "animate-ping bg-amber-400"
+                              : "bg-emerald-400"
+                          }`}
+                        />
+                        {(imu.gyro_y_dps ?? 0) <= -0.58
+                          ? "Ceiling Fan Motor Oscillation"
+                          : Math.abs((imu.vibration_magnitude_g ?? 1.0) - 1.0) > 0.08
+                          ? "High Mechanical Vibration"
+                          : "Low Noise / Static Platform"}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 border-t border-slate-800 pt-3 text-[11px] text-slate-400">
+                    <span className="text-slate-300 font-medium">Why IMU fusion matters:</span> Allows TinyML to distinguish between inductive motorized loads (Ceiling Fan) and purely electronic loads (Fast Charger) at matching current draws.
+                  </div>
+                </div>
+              </div>
+            </section>
+                {/* Explainable AI (XAI) Decision Tree Inspector (Google Stitch / M3 Style) */}
+            <section className="rounded-xl border border-slate-800 bg-slate-900/60 p-5 shadow-sm backdrop-blur-md sm:p-6">
+              <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500/10 text-blue-400 ring-1 ring-blue-500/20">
+                    <GitBranch className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-base font-bold tracking-tight text-white sm:text-lg">
+                        Explainable AI (XAI) — On-Chip Decision Tree Trace
+                      </h2>
+                      <span className="rounded-md border border-slate-800 bg-slate-900 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-blue-300">
+                        {benchmark.inference_latency_us ?? 14} µs Latency
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-400">
+                      Live execution path of on-device C decision tree (<code className="text-blue-300 font-mono">inference.h</code>). Zero dynamic heap, 100% deterministic on ESP32.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 text-xs font-mono text-slate-400">
+                  <span className="rounded-full bg-slate-800/80 px-2.5 py-1 text-[11px] text-slate-300 border border-slate-700/60">
+                    Model: {mlInference.model || "TinyML Tree"}
+                  </span>
+                </div>
+              </div>
+
+              {/* Dynamic Tree Traversal Canvas */}
+              <div className="rounded-xl border border-slate-800/80 bg-slate-950/70 p-4 sm:p-5 overflow-x-auto">
+                <div className="min-w-[700px] space-y-4">
+                  {/* Live Input Feature Vectors */}
+                  <div className="flex items-center justify-between p-3 rounded-lg bg-slate-900/80 border border-slate-800 text-xs font-mono">
+                    <div className="flex items-center gap-2">
+                      <span className="text-slate-500 font-semibold uppercase text-[10px]">Active Feature Vector:</span>
+                      <span className="text-blue-300">ΔI: <strong className="text-white">{(totalCurrent > 0.1 ? (events[0]?.delta_i_a || totalCurrent) : 0.0).toFixed(2)} A</strong></span>
+                      <span className="text-slate-600">|</span>
+                      <span className="text-blue-300">Gyro ω_y: <strong className="text-white">{(imu.gyro_y_dps ?? 0.0).toFixed(2)} °/s</strong></span>
+                      <span className="text-slate-600">|</span>
+                      <span className="text-blue-300">|a| Mag: <strong className="text-white">{(imu.vibration_magnitude_g ?? 1.0).toFixed(2)} g</strong></span>
+                    </div>
+                    <div className="text-[11px] text-slate-400">
+                      Predicted: <strong className="text-emerald-400 font-bold">{mlInference.predicted_appliance ?? "Standby"}</strong>
+                    </div>
+                  </div>
+
+                  {/* 3-Stage Connected Explainable AI Flow */}
+                  <div className="grid grid-cols-1 md:grid-cols-11 gap-2 items-center">
+                    {/* Node 1: Standby Gate */}
+                    {(() => {
+                      const curDelta = totalCurrent > 0.1 ? (events[0]?.delta_i_a || totalCurrent) : 0.0;
+                      const isStandbyBranch = curDelta <= 0.1125;
+                      return (
+                        <div className={`col-span-1 md:col-span-3 p-3.5 rounded-xl border transition-all shadow-sm ${
+                          isStandbyBranch
+                            ? "border-emerald-500/70 bg-emerald-950/25 ring-2 ring-emerald-500/40 shadow-[0_0_12px_rgba(16,185,129,0.2)]"
+                            : "border-slate-800 bg-slate-900/40 opacity-70"
+                        }`}>
+                          <div className="flex items-center justify-between text-[11px] mb-2 font-mono">
+                            <span className="text-slate-500 font-semibold">STAGE 1</span>
+                            <span className={isStandbyBranch ? "text-emerald-400 font-bold" : "text-slate-400"}>
+                              {isStandbyBranch ? "TERMINAL (LEAF)" : "BYPASS ➔"}
+                            </span>
+                          </div>
+                          <h4 className="text-xs font-bold text-white mb-1">Quiescent Gate</h4>
+                          <p className="text-[11px] font-mono text-slate-400 mb-2">f[1] ≤ 0.1125 A</p>
+                          <div className="text-[10px] rounded bg-slate-950/80 p-2 border border-slate-800/80 font-mono tabular-nums space-y-1">
+                            <div>Input: {curDelta.toFixed(3)} A</div>
+                            <div className={isStandbyBranch ? "text-emerald-300 font-bold" : "text-slate-500"}>
+                              Result: {isStandbyBranch ? "TRUE ➔ Standby(3)" : "FALSE ➔ Test Stage 2"}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })()}
+
+                    {/* Connector Bridge 1 -> 2 */}
+                    {(() => {
+                      const curDelta = totalCurrent > 0.1 ? (events[0]?.delta_i_a || totalCurrent) : 0.0;
+                      const isBypassedToStage2 = curDelta > 0.1125;
+                      return (
+                        <div className="col-span-1 hidden md:flex flex-col items-center justify-center gap-1 py-2">
+                          <span className={`text-[9px] font-mono font-bold uppercase ${isBypassedToStage2 ? "text-blue-400" : "text-slate-600"}`}>
+                            {isBypassedToStage2 ? "ACTIVE" : "OFF"}
+                          </span>
+                          <div className={`p-1.5 rounded-full transition-all ${
+                            isBypassedToStage2
+                              ? "bg-blue-500/20 text-blue-400 ring-1 ring-blue-500/50 animate-pulse shadow-[0_0_8px_rgba(59,130,246,0.4)]"
+                              : "text-slate-700 bg-slate-900 border border-slate-800"
+                          }`}>
+                            <ChevronRight className="h-4 w-4" />
+                          </div>
+                          <span className="text-[8px] font-mono text-slate-500 tabular-nums">&gt;0.11A</span>
+                        </div>
+                      );
+                    })()}
+
+                    {/* Node 2: Thermal Split */}
+                    {(() => {
+                      const curDelta = totalCurrent > 0.1 ? (events[0]?.delta_i_a || totalCurrent) : 0.0;
+                      const isStandby = curDelta <= 0.1125;
+                      const isIronBranch = !isStandby && curDelta > 2.7525;
+                      const isSubtree = !isStandby && curDelta <= 2.7525;
+
+                      return (
+                        <div className={`col-span-1 md:col-span-3 p-3.5 rounded-xl border transition-all shadow-sm ${
+                          isIronBranch
+                            ? "border-amber-500/70 bg-amber-950/25 ring-2 ring-amber-500/40 shadow-[0_0_12px_rgba(245,158,11,0.2)]"
+                            : isSubtree
+                            ? "border-blue-500/60 bg-blue-950/20 ring-1 ring-blue-500/40"
+                            : "border-slate-800 bg-slate-900/40 opacity-50"
+                        }`}>
+                          <div className="flex items-center justify-between text-[11px] mb-2 font-mono">
+                            <span className="text-slate-500 font-semibold">STAGE 2</span>
+                            <span className={isIronBranch ? "text-amber-400 font-bold" : isSubtree ? "text-blue-400 font-bold" : "text-slate-400"}>
+                              {isIronBranch ? "IRON TERMINAL" : isSubtree ? "SUBTREE ➔" : "IDLE"}
+                            </span>
+                          </div>
+                          <h4 className="text-xs font-bold text-white mb-1">Thermal Load Split</h4>
+                          <p className="text-[11px] font-mono text-slate-400 mb-2">f[1] ≤ 2.7525 A</p>
+                          <div className="text-[10px] rounded bg-slate-950/80 p-2 border border-slate-800/80 font-mono tabular-nums space-y-1">
+                            <div>Input: {curDelta.toFixed(3)} A</div>
+                            <div className={isIronBranch ? "text-amber-300 font-bold" : isSubtree ? "text-blue-300 font-semibold" : "text-slate-500"}>
+                              Result: {isIronBranch ? "FALSE ➔ Electric Iron(1)" : isSubtree ? "TRUE ➔ Test Stage 3" : "--"}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })()}
+
+                    {/* Connector Bridge 2 -> 3 */}
+                    {(() => {
+                      const curDelta = totalCurrent > 0.1 ? (events[0]?.delta_i_a || totalCurrent) : 0.0;
+                      const isStandby = curDelta <= 0.1125;
+                      const isSubtree = !isStandby && curDelta <= 2.7525;
+                      return (
+                        <div className="col-span-1 hidden md:flex flex-col items-center justify-center gap-1 py-2">
+                          <span className={`text-[9px] font-mono font-bold uppercase ${isSubtree ? "text-sky-400" : "text-slate-600"}`}>
+                            {isSubtree ? "FUSION" : "OFF"}
+                          </span>
+                          <div className={`p-1.5 rounded-full transition-all ${
+                            isSubtree
+                              ? "bg-sky-500/20 text-sky-400 ring-1 ring-sky-500/50 animate-pulse shadow-[0_0_8px_rgba(56,189,248,0.4)]"
+                              : "text-slate-700 bg-slate-900 border border-slate-800"
+                          }`}>
+                            <ChevronRight className="h-4 w-4" />
+                          </div>
+                          <span className="text-[8px] font-mono text-slate-500">Kinetic</span>
+                        </div>
+                      );
+                    })()}
+
+                    {/* Node 3: Kinetic Gyro Fusion */}
+                    {(() => {
+                      const curDelta = totalCurrent > 0.1 ? (events[0]?.delta_i_a || totalCurrent) : 0.0;
+                      const curGyroY = imu.gyro_y_dps ?? 0.0;
+                      const isStandby = curDelta <= 0.1125;
+                      const isSubtree = !isStandby && curDelta <= 2.7525;
+                      const isFan = isSubtree && curGyroY <= -0.5850;
+                      const isCharger = isSubtree && curGyroY > -0.5850;
+
+                      return (
+                        <div className={`col-span-1 md:col-span-3 p-3.5 rounded-xl border transition-all shadow-sm ${
+                          isFan
+                            ? "border-sky-500/70 bg-sky-950/25 ring-2 ring-sky-500/40 shadow-[0_0_12px_rgba(56,189,248,0.25)]"
+                            : isCharger
+                            ? "border-indigo-400/70 bg-indigo-950/25 ring-2 ring-indigo-400/40 shadow-[0_0_12px_rgba(129,140,248,0.25)]"
+                            : "border-slate-800 bg-slate-900/40 opacity-50"
+                        }`}>
+                          <div className="flex items-center justify-between text-[11px] mb-2 font-mono">
+                            <span className="text-slate-500 font-semibold">STAGE 3 (FUSION)</span>
+                            <span className={isFan ? "text-sky-400 font-bold" : isCharger ? "text-indigo-300 font-bold" : "text-slate-400"}>
+                              {isFan ? "MOTOR FUSION" : isCharger ? "SMPS FUSION" : "IDLE"}
+                            </span>
+                          </div>
+                          <h4 className="text-xs font-bold text-white mb-1">IMU Gyro-Y Split</h4>
+                          <p className="text-[11px] font-mono text-slate-400 mb-2">f[6] ≤ -0.5850 °/s</p>
+                          <div className="text-[10px] rounded bg-slate-950/80 p-2 border border-slate-800/80 font-mono tabular-nums space-y-1">
+                            <div>Input: {curGyroY.toFixed(3)} °/s</div>
+                            <div className={isFan ? "text-sky-300 font-bold" : isCharger ? "text-indigo-200 font-bold" : "text-slate-500"}>
+                              Result: {isFan ? "TRUE ➔ Ceiling Fan(0)" : isCharger ? "FALSE ➔ Fast Charger(2)" : "--"}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </div>
+
+                  {/* Explainable AI Verification Summary Box */}
+                  <div className="flex items-center gap-3 p-3 rounded-lg border border-slate-800 bg-slate-900/60 text-xs">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
+                    <p className="text-slate-300">
+                      <strong className="text-white">Why Multi-Sensor Disambiguation Succeeded:</strong>{" "}
+                      {appliances["Electric Iron"]?.state === "ON"
+                        ? "Current jump (ΔI > 2.75A) unambiguously identified high-wattage resistive heating without needing vibration cues."
+                        : appliances["Ceiling Fan"]?.state === "ON"
+                        ? "Electrical current overlap with Fast Charger (~0.2-0.4A) was resolved deterministically by detecting motor kinetic rotation (ω_y ≤ -0.585 °/s)."
+                        : appliances["Fast Charger"]?.state === "ON"
+                        ? "Low current jump (~0.24A) combined with static gyro (ω_y > -0.585 °/s) correctly isolated electronic adapter from motor loads."
+                        : "System is in quiescent standby state (ΔI ≤ 0.1125A), conserving edge computation cycles."}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </section>
+              </div>
+            )}
+
+            {/* Subsystem 4: Event Audit Trail & Compliance Reports */}
+            {engTab === "audit" && (
+              <div className="space-y-6 animate-in fade-in duration-150">
+                {/* Event Audit Trail Table, Print Report & CSV Export */}
             <section className="rounded-xl border border-slate-800 bg-slate-900/60 p-5 shadow-sm backdrop-blur-md sm:p-6">
               <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex items-center gap-3">
@@ -3062,8 +3134,6 @@ export default function Dashboard() {
                 </div>
               )}
             </section>
-          </div>
-        )}
 
         {/* Remote Load Shedding Audit History Log (SQLite Persisted) */}
         {recentAudits.length > 0 && (
@@ -3248,97 +3318,11 @@ export default function Dashboard() {
             </div>
           </div>
         </section>
+              </div>
+            )}
+          </div>
+        )}
       </main>
-
-      {/* Bottom Viewport Fade Scrim to protect content from overlapping dock */}
-      <div className="pointer-events-none fixed bottom-0 inset-x-0 h-28 bg-gradient-to-t from-slate-950 via-slate-950/80 to-transparent z-30 print:hidden" />
-
-      {/* Google Stitch Persistent SCADA Command Dock (Floating Glass Island) */}
-      <aside aria-label="Quick SCADA Actions" className="fixed bottom-4 sm:bottom-6 left-1/2 -translate-x-1/2 z-40 print:hidden pointer-events-auto max-w-[95vw]">
-        <div className="flex items-center gap-2 sm:gap-3 rounded-full border border-slate-700/80 bg-slate-950/90 px-3 py-1.5 sm:px-4 sm:py-2 shadow-2xl backdrop-blur-2xl ring-1 ring-white/15 transition-all hover:border-slate-500">
-          {/* Live Node Heartbeat Dot */}
-          <div className="flex items-center gap-1.5 pr-2 border-r border-slate-800 shrink-0">
-            <span className="relative flex h-2 w-2">
-              <span className={`absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75 ${packetFlash ? "animate-ping" : ""}`}></span>
-              <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500"></span>
-            </span>
-            <span className="text-[10px] font-mono font-bold text-slate-300 hidden md:inline">1Hz SCADA</span>
-          </div>
-
-          {/* Quick View Switcher */}
-          <div className="flex items-center rounded-full bg-slate-950/80 p-0.5 border border-slate-800 text-xs">
-            <button
-              onClick={() => setViewMode("office")}
-              className={`rounded-full px-2.5 py-1 text-[11px] font-semibold transition-all ${
-                viewMode === "office" ? "bg-blue-600 text-white shadow-sm" : "text-slate-400 hover:text-white"
-              }`}
-            >
-              Office
-            </button>
-            <button
-              onClick={() => setViewMode("engineering")}
-              className={`rounded-full px-2.5 py-1 text-[11px] font-semibold transition-all ${
-                viewMode === "engineering" ? "bg-blue-600 text-white shadow-sm" : "text-slate-400 hover:text-white"
-              }`}
-            >
-              Engineering
-            </button>
-          </div>
-
-          {/* Tariff Slab Pill */}
-          <div className="hidden sm:flex items-center gap-1 px-2 text-[10px] font-mono tabular-nums text-slate-300 border-l border-slate-800">
-            <span className="text-amber-400 font-bold font-sans uppercase">⚡ {todTariff.slot}:</span>
-            <span className="font-semibold text-white">₹{(todTariff.rate_inr ?? 7.5).toFixed(2)}/u</span>
-          </div>
-
-          {/* Virtual Testbench Trigger */}
-          <button
-            onClick={() => setIsTestbenchOpen(true)}
-            className={`flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-bold border transition-all ${
-              activeScenarioKey
-                ? "bg-cyan-500/20 text-cyan-300 border-cyan-400 ring-1 ring-cyan-500/40 animate-pulse shadow-[0_0_10px_rgba(6,182,212,0.3)]"
-                : "bg-slate-900 border-slate-700 text-cyan-400 hover:border-cyan-500/50 hover:text-white"
-            }`}
-            title="Open Interactive Hardware Testbench"
-          >
-            <Sliders className="h-3 w-3" />
-            <span className="hidden sm:inline">Testbench</span>
-          </button>
-
-          {/* Gridvibe Copilot Trigger */}
-          <button
-            onClick={() => setIsCopilotOpen(true)}
-            className="flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-bold bg-purple-950/80 border border-purple-500/50 text-purple-200 hover:bg-purple-900/80 hover:border-purple-400 shadow-[0_0_12px_rgba(168,85,247,0.3)]"
-            title="Open Gridvibe AI Copilot"
-          >
-            <Sparkles className="h-3 w-3 text-purple-300 animate-pulse" />
-            <span>Copilot</span>
-          </button>
-
-          {/* Breaker One-Click Action */}
-          <button
-            onClick={() => openBreakerModal()}
-            disabled={isControlling}
-            className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-bold transition-all shadow-sm ${
-              breakerStatus === "TRIPPED"
-                ? "bg-emerald-600 hover:bg-emerald-500 text-white shadow-[0_0_12px_rgba(160,185,129,0.4)]"
-                : "bg-rose-600/90 hover:bg-rose-500 text-white shadow-[0_0_12px_rgba(244,63,94,0.3)]"
-            }`}
-          >
-            <Power className="h-3 w-3" />
-            <span>{breakerStatus === "TRIPPED" ? "Reset" : "Load Shed"}</span>
-          </button>
-
-          {/* Mute Button */}
-          <button
-            onClick={() => setAlarmMuted(!alarmMuted)}
-            className="flex items-center justify-center rounded-full p-1.5 text-slate-400 hover:text-white transition-colors border border-slate-800/80 bg-slate-950/60"
-            title={alarmMuted ? "Audio muted" : "Audio alarm active"}
-          >
-            {alarmMuted ? <VolumeX className="h-3 w-3 text-slate-500" /> : <Volume2 className="h-3 w-3 text-blue-400" />}
-          </button>
-        </div>
-      </aside>
 
       {/* Scenario Testbench Modal */}
       <ScenarioTestbench
